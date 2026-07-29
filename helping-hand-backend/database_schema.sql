@@ -34,3 +34,6 @@ CREATE TABLE shifts (
     end_time TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_workers_available ON workers(is_available);
+CREATE INDEX IF NOT EXISTS idx_workers_category ON workers(worker_category);

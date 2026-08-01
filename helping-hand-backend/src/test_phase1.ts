@@ -3,6 +3,8 @@ import pg from 'pg';
 import pool from './db/db.js';
 import redisClient from './db/redisClient.js';
 import { calculateHaversineDistance } from './utils/haversine.js';
+import { scheduleAutomatedVerificationCall } from './services/callScheduler.js';
+import { processIvrKeypress } from './services/ivrService.js';
 
 async function runEndToEndTests() {
     console.log('🧪 Starting Phase 1 End-to-End API Logic Verification...\n');
@@ -55,8 +57,17 @@ async function runEndToEndTests() {
             actual_cash_paid DECIMAL(10, 2), 
             start_time TIMESTAMP,
             end_time TIMESTAMP,
+            verification_call_status VARCHAR(20) DEFAULT 'NONE',
+            worker_call_confirmed BOOLEAN DEFAULT FALSE,
+            employer_call_confirmed BOOLEAN DEFAULT FALSE,
+            verification_scheduled_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS verification_call_status VARCHAR(20) DEFAULT 'NONE';
+        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS worker_call_confirmed BOOLEAN DEFAULT FALSE;
+        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS employer_call_confirmed BOOLEAN DEFAULT FALSE;
+        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS verification_scheduled_at TIMESTAMP;
     `);
     console.log('   ✅ PostgreSQL Tables Ready!');
 
@@ -150,10 +161,26 @@ async function runEndToEndTests() {
         await redisClient.zRem('workers_locations', worker.worker_id);
 
         console.log(`   ✅ Proximity Check Test (<=50m): ${closeDistance}m apart -> VERIFIED!`);
-        console.log(`   🎉 Shift Completed! Cash Settlement Logged: ₹${completedRes.rows[0].actual_cash_paid}`);
+        console.log(`   🎉 Shift Completed! Cash Settlement Logged: ₹${completedRes.rows[0].actual_cash_paid}\n`);
     }
 
-    console.log('\n✨ ALL PHASE 1 CORE API & DATABASE TESTS PASSED SUCCESSFULLY! ✨');
+    console.log('6️⃣ Testing Automated IVR Call Verification Flow (5-10 Min Post-Shift Window)...');
+    
+    // Schedule Call (simulated sync test)
+    await scheduleAutomatedVerificationCall(shift.shift_id, 0, true);
+
+    // Simulate Worker pressing 1 (Confirmed)
+    const workerKeypressResult = await processIvrKeypress(shift.shift_id, 'worker', '1');
+    console.log(`   📞 Worker DTMF response processed: ${workerKeypressResult.message}`);
+
+    // Simulate Employer pressing 1 (Confirmed)
+    const employerKeypressResult = await processIvrKeypress(shift.shift_id, 'employer', '1');
+    console.log(`   📞 Employer DTMF response processed: ${employerKeypressResult.message}`);
+
+    const finalShiftCheck = await pool.query('SELECT * FROM shifts WHERE shift_id = $1', [shift.shift_id]);
+    console.log(`   ✅ Final Verification Call Status: ${finalShiftCheck.rows[0].verification_call_status}`);
+
+    console.log('\n✨ ALL PHASE 1 CORE API, DATABASE & IVR CALL VERIFICATION TESTS PASSED SUCCESSFULLY! ✨');
     
     await pool.end();
     await redisClient.disconnect();

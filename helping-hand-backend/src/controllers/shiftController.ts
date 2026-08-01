@@ -3,6 +3,8 @@ import pool from '../db/db.js';
 import redisClient from '../db/redisClient.js';
 import { REDIS_WORKERS_GEO_KEY } from './supplyController.js';
 import { calculateHaversineDistance } from '../utils/haversine.js';
+import { scheduleAutomatedVerificationCall } from '../services/callScheduler.js';
+import { processIvrKeypress } from '../services/ivrService.js';
 
 export const createShift = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -90,7 +92,7 @@ export const startShift = async (req: Request, res: Response): Promise<void> => 
 export const reconcileCash = async (req: Request, res: Response): Promise<void> => {
     try {
         const { shiftId } = req.params;
-        const { workerLat, workerLng, employerLat, employerLng, cashAmount } = req.body;
+        const { workerLat, workerLng, employerLat, employerLng, cashAmount, delayMinutes, isSyncTest } = req.body;
 
         if (
             workerLat === undefined || workerLng === undefined ||
@@ -146,15 +148,46 @@ export const reconcileCash = async (req: Request, res: Response): Promise<void> 
         );
         await redisClient.zRem(REDIS_WORKERS_GEO_KEY, completedShift.worker_id);
 
+        const callDelay = delayMinutes !== undefined ? Number(delayMinutes) : 5;
+        const targetShiftId = Array.isArray(shiftId) ? shiftId[0] : shiftId;
+        const callScheduleResult = await scheduleAutomatedVerificationCall(
+            targetShiftId,
+            callDelay,
+            isSyncTest === true
+        );
+
         res.status(200).json({
             success: true,
             verified: true,
             distanceMeters,
-            message: 'Physical cash payment successfully verified and shift closed.',
-            shift: completedShift
+            message: 'Physical cash payment successfully verified and shift closed. Automated IVR call scheduled.',
+            shift: completedShift,
+            callScheduled: callScheduleResult
         });
     } catch (error: any) {
         console.error('Error in reconcileCash:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+export const handleIvrCallback = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { shiftId } = req.params;
+        const { role, dtmfDigit } = req.body;
+
+        if (!role || !dtmfDigit || (role !== 'worker' && role !== 'employer')) {
+            res.status(400).json({
+                success: false,
+                error: 'Valid role ("worker" or "employer") and dtmfDigit are required'
+            });
+            return;
+        }
+
+        const targetShiftId = Array.isArray(shiftId) ? shiftId[0] : shiftId;
+        const result = await processIvrKeypress(targetShiftId, role, String(dtmfDigit));
+        res.status(200).json(result);
+    } catch (error: any) {
+        console.error('Error in handleIvrCallback:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 };

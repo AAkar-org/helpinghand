@@ -32,6 +32,10 @@ CREATE TABLE shifts (
     actual_cash_paid DECIMAL(10, 2), 
     start_time TIMESTAMP,
     end_time TIMESTAMP,
+    verification_call_status VARCHAR(20) DEFAULT 'NONE', -- 'NONE', 'SCHEDULED', 'DISPATCHED', 'VERIFIED', 'DISPUTED'
+    worker_call_confirmed BOOLEAN DEFAULT FALSE,
+    employer_call_confirmed BOOLEAN DEFAULT FALSE,
+    verification_scheduled_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -8,6 +8,7 @@ import authRoutes from './routes/authRoutes.js';
 import supplyRoutes from './routes/supplyRoutes.js';
 import demandRoutes from './routes/demandRoutes.js';
 import shiftRoutes from './routes/shiftRoutes.js';
+import ratingRoutes from './routes/ratingRoutes.js';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -34,6 +35,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/supply', supplyRoutes);
 app.use('/api/demand', demandRoutes);
 app.use('/api/shifts', shiftRoutes);
+app.use('/api/ratings', ratingRoutes);
+app.use('/api', ratingRoutes);
 
 app.use((req: Request, res: Response) => {
     res.status(404).json({ success: false, error: `Route not found: ${req.method} ${req.url}` });

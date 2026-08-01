@@ -18,6 +18,10 @@ CREATE TABLE workers (
     last_known_lat DECIMAL(10, 8),
     last_known_lng DECIMAL(10, 8),
     trust_score DECIMAL(3,2) DEFAULT 5.00,
+    total_completed_shifts INT DEFAULT 0,
+    total_ratings_count INT DEFAULT 0,
+    average_rating DECIMAL(3, 2) DEFAULT 5.00,
+    is_verified_id BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -42,5 +46,18 @@ CREATE TABLE shifts (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 4. Ratings & Reviews
+CREATE TABLE ratings (
+    rating_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    shift_id UUID REFERENCES shifts(shift_id),
+    reviewer_id UUID NOT NULL,
+    reviewee_id UUID NOT NULL,
+    reviewer_role VARCHAR(10) NOT NULL, -- 'employer' or 'worker'
+    rating_stars INT CHECK (rating_stars BETWEEN 1 AND 5),
+    review_comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_workers_available ON workers(is_available);
 CREATE INDEX IF NOT EXISTS idx_workers_category ON workers(worker_category);
+CREATE INDEX IF NOT EXISTS idx_ratings_reviewee ON ratings(reviewee_id);

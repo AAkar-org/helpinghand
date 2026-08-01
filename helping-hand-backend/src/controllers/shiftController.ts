@@ -89,22 +89,91 @@ export const startShift = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
+export const adjustShiftTiming = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { shiftId } = req.params;
+        const targetShiftId = Array.isArray(shiftId) ? shiftId[0] : shiftId;
+        const { startTime, endTime, workedHours, customWage, reason, standardHoursPerDay } = req.body;
+
+        const shiftCheck = await pool.query('SELECT * FROM shifts WHERE shift_id = $1', [targetShiftId]);
+        if (shiftCheck.rows.length === 0) {
+            res.status(404).json({ success: false, error: 'Shift not found' });
+            return;
+        }
+
+        const shift = shiftCheck.rows[0];
+        const baseDailyWage = Number(shift.agreed_daily_wage);
+        const standardHours = Number(standardHoursPerDay || 8);
+
+        let calculatedHours = workedHours !== undefined ? Number(workedHours) : undefined;
+        let startTs = startTime ? new Date(startTime) : (shift.start_time ? new Date(shift.start_time) : new Date());
+        let endTs = endTime ? new Date(endTime) : (shift.end_time ? new Date(shift.end_time) : new Date());
+
+        if (calculatedHours === undefined && startTime && endTime) {
+            const diffMs = new Date(endTime).getTime() - new Date(startTime).getTime();
+            calculatedHours = Math.max(0, Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100);
+        }
+
+        if (calculatedHours === undefined) {
+            calculatedHours = Number(shift.worked_hours || standardHours);
+        }
+
+        let finalAdjustedWage: number;
+
+        if (customWage !== undefined) {
+            finalAdjustedWage = Number(customWage);
+        } else {
+            finalAdjustedWage = Math.round(((calculatedHours / standardHours) * baseDailyWage) * 100) / 100;
+        }
+
+        const result = await pool.query(
+            `UPDATE shifts 
+             SET start_time = $1, 
+                 end_time = $2, 
+                 worked_hours = $3, 
+                 adjusted_wage = $4, 
+                 adjustment_reason = $5
+             WHERE shift_id = $6 
+             RETURNING *`,
+            [startTs, endTs, calculatedHours, finalAdjustedWage, reason || 'Shift timing adjusted', targetShiftId]
+        );
+
+        res.status(200).json({
+            success: true,
+            message: `Shift timing & wage successfully updated. Adjusted wage: ₹${finalAdjustedWage} for ${calculatedHours} hour(s).`,
+            shift: result.rows[0]
+        });
+    } catch (error: any) {
+        console.error('Error in adjustShiftTiming:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
 export const reconcileCash = async (req: Request, res: Response): Promise<void> => {
     try {
         const { shiftId } = req.params;
+        const targetShiftId = Array.isArray(shiftId) ? shiftId[0] : shiftId;
         const { workerLat, workerLng, employerLat, employerLng, cashAmount, delayMinutes, isSyncTest } = req.body;
 
         if (
             workerLat === undefined || workerLng === undefined ||
-            employerLat === undefined || employerLng === undefined ||
-            cashAmount === undefined
+            employerLat === undefined || employerLng === undefined
         ) {
             res.status(400).json({
                 success: false,
-                error: 'workerLat, workerLng, employerLat, employerLng, and cashAmount are required'
+                error: 'workerLat, workerLng, employerLat, and employerLng are required'
             });
             return;
         }
+
+        const existingShiftRes = await pool.query('SELECT * FROM shifts WHERE shift_id = $1', [targetShiftId]);
+        if (existingShiftRes.rows.length === 0) {
+            res.status(404).json({ success: false, error: 'Shift not found' });
+            return;
+        }
+
+        const existingShift = existingShiftRes.rows[0];
+        const effectiveCashPaid = cashAmount !== undefined ? Number(cashAmount) : Number(existingShift.adjusted_wage ?? existingShift.agreed_daily_wage);
 
         const distanceMeters = Math.round(
             calculateHaversineDistance(
@@ -129,16 +198,11 @@ export const reconcileCash = async (req: Request, res: Response): Promise<void> 
 
         const shiftResult = await pool.query(
             `UPDATE shifts 
-             SET status = 'COMPLETED', actual_cash_paid = $1, end_time = CURRENT_TIMESTAMP 
+             SET status = 'COMPLETED', actual_cash_paid = $1, end_time = COALESCE(end_time, CURRENT_TIMESTAMP) 
              WHERE shift_id = $2 
              RETURNING *`,
-            [Number(cashAmount), shiftId]
+            [effectiveCashPaid, targetShiftId]
         );
-
-        if (shiftResult.rows.length === 0) {
-            res.status(404).json({ success: false, error: 'Shift not found' });
-            return;
-        }
 
         const completedShift = shiftResult.rows[0];
 
@@ -149,7 +213,6 @@ export const reconcileCash = async (req: Request, res: Response): Promise<void> 
         await redisClient.zRem(REDIS_WORKERS_GEO_KEY, completedShift.worker_id);
 
         const callDelay = delayMinutes !== undefined ? Number(delayMinutes) : 5;
-        const targetShiftId = Array.isArray(shiftId) ? shiftId[0] : shiftId;
         const callScheduleResult = await scheduleAutomatedVerificationCall(
             targetShiftId,
             callDelay,

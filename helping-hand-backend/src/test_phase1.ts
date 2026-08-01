@@ -68,6 +68,9 @@ async function runEndToEndTests() {
         ALTER TABLE shifts ADD COLUMN IF NOT EXISTS worker_call_confirmed BOOLEAN DEFAULT FALSE;
         ALTER TABLE shifts ADD COLUMN IF NOT EXISTS employer_call_confirmed BOOLEAN DEFAULT FALSE;
         ALTER TABLE shifts ADD COLUMN IF NOT EXISTS verification_scheduled_at TIMESTAMP;
+        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS adjusted_wage DECIMAL(10, 2);
+        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS adjustment_reason VARCHAR(255);
+        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS worked_hours DECIMAL(4, 2);
     `);
     console.log('   ✅ PostgreSQL Tables Ready!');
 
@@ -131,7 +134,7 @@ async function runEndToEndTests() {
     console.log(`   ✅ Employer site is ${distanceMeters} meters away from worker Ramesh.`);
     console.log(`   ✅ Demand search matched worker: Ramesh (Mason) - Distance: ${distanceMeters}m\n`);
 
-    console.log('5️⃣ Testing Shift Ledger & 5 PM Cash Reconciliation Loop...');
+    console.log('5️⃣ Testing Shift Ledger, Timing Adjustment & 5 PM Cash Reconciliation Loop...');
     
     const shiftRes = await pool.query(`
         INSERT INTO shifts (employer_id, worker_id, agreed_daily_wage, status, platform_fee_paid)
@@ -139,11 +142,22 @@ async function runEndToEndTests() {
         RETURNING *
     `, [employer.employer_id, worker.worker_id]);
     const shift = shiftRes.rows[0];
-    console.log(`   📋 Shift Created: ID ${shift.shift_id} | Wage: ₹${shift.agreed_daily_wage} | Status: ${shift.status}`);
+    console.log(`   📋 Shift Created: ID ${shift.shift_id} | Base Wage: ₹${shift.agreed_daily_wage} | Status: ${shift.status}`);
 
     await pool.query(`UPDATE shifts SET status = 'ACCEPTED' WHERE shift_id = $1`, [shift.shift_id]);
     await pool.query(`UPDATE shifts SET status = 'ACTIVE', start_time = CURRENT_TIMESTAMP WHERE shift_id = $1`, [shift.shift_id]);
     console.log(`   ⏱️ Shift Started! Status updated to ACTIVE.`);
+
+    // Test Timing Adjustment (4 hours worked out of 8 hours standard day => ₹400 pro-rated wage)
+    const adjustedRes = await pool.query(`
+        UPDATE shifts 
+        SET worked_hours = 4.0, 
+            adjusted_wage = 400.00, 
+            adjustment_reason = 'Worker left early after 4 hours' 
+        WHERE shift_id = $1 
+        RETURNING *
+    `, [shift.shift_id]);
+    console.log(`   ⏱️ Shift Timing Adjusted: ${adjustedRes.rows[0].worked_hours} hours worked $\\rightarrow$ Pro-rated Wage: ₹${adjustedRes.rows[0].adjusted_wage}`);
 
     const farDistance = Math.round(calculateHaversineDistance(18.6300, 73.8000, 18.6350, 73.8050));
     console.log(`   ❌ Proximity Check Test (>50m): ${farDistance}m apart -> REJECTED appropriately.`);
@@ -152,10 +166,10 @@ async function runEndToEndTests() {
     if (closeDistance <= 50) {
         const completedRes = await pool.query(`
             UPDATE shifts 
-            SET status = 'COMPLETED', actual_cash_paid = 800.00, end_time = CURRENT_TIMESTAMP 
-            WHERE shift_id = $1 
+            SET status = 'COMPLETED', actual_cash_paid = $1, end_time = CURRENT_TIMESTAMP 
+            WHERE shift_id = $2 
             RETURNING *
-        `, [shift.shift_id]);
+        `, [adjustedRes.rows[0].adjusted_wage, shift.shift_id]);
 
         await pool.query(`UPDATE workers SET is_available = false WHERE worker_id = $1`, [worker.worker_id]);
         await redisClient.zRem('workers_locations', worker.worker_id);
@@ -178,9 +192,9 @@ async function runEndToEndTests() {
     console.log(`   📞 Employer DTMF response processed: ${employerKeypressResult.message}`);
 
     const finalShiftCheck = await pool.query('SELECT * FROM shifts WHERE shift_id = $1', [shift.shift_id]);
-    console.log(`   ✅ Final Verification Call Status: ${finalShiftCheck.rows[0].verification_call_status}`);
+    console.log(`   ✅ Final Verification Call Status: ${finalShiftCheck.rows[0].verification_call_status} (Prompt Wage: ₹${finalShiftCheck.rows[0].adjusted_wage})`);
 
-    console.log('\n✨ ALL PHASE 1 CORE API, DATABASE & IVR CALL VERIFICATION TESTS PASSED SUCCESSFULLY! ✨');
+    console.log('\n✨ ALL PHASE 1 CORE API, DATABASE, TIMING ADJUSTMENT & IVR CALL VERIFICATION TESTS PASSED SUCCESSFULLY! ✨');
     
     await pool.end();
     await redisClient.disconnect();

@@ -38,7 +38,7 @@ export const scheduleAutomatedVerificationCall = async (
                 shiftId,
                 workerPhone: shift.worker_phone,
                 employerPhone: shift.employer_phone,
-                agreedWage: Number(shift.agreed_daily_wage)
+                agreedWage: Number(shift.adjusted_wage ?? shift.agreed_daily_wage)
             });
         } catch (err) {
             console.error(`❌ [Call Scheduler Error] Failed to trigger call for Shift ${shiftId}:`, err);

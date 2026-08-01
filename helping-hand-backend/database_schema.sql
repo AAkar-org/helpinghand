@@ -36,6 +36,9 @@ CREATE TABLE shifts (
     worker_call_confirmed BOOLEAN DEFAULT FALSE,
     employer_call_confirmed BOOLEAN DEFAULT FALSE,
     verification_scheduled_at TIMESTAMP,
+    adjusted_wage DECIMAL(10, 2),
+    adjustment_reason VARCHAR(255),
+    worked_hours DECIMAL(4, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

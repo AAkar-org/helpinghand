@@ -6,6 +6,45 @@ import { calculateHaversineDistance } from '../../utils/haversine.js';
 import { scheduleAutomatedVerificationCall } from '../../services/callScheduler.js';
 import { processIvrKeypress } from '../../services/ivrService.js';
 
+// Utility helper to synchronize worker availability based on current shifts status
+export const syncWorkerAvailability = async (workerId: string): Promise<boolean> => {
+    try {
+        const activeShiftsRes = await pool.query(
+            `SELECT COUNT(*) FROM shifts 
+             WHERE worker_id = $1 AND status IN ('ACCEPTED', 'ACTIVE')`,
+            [workerId]
+        );
+        const hasActiveShift = parseInt(activeShiftsRes.rows[0].count) > 0;
+        const isAvailable = !hasActiveShift;
+
+        const workerRes = await pool.query(
+            `UPDATE workers SET is_available = $1 WHERE worker_id = $2 RETURNING *`,
+            [isAvailable, workerId]
+        );
+
+        if (workerRes.rows.length > 0) {
+            const worker = workerRes.rows[0];
+            if (isAvailable) {
+                const lat = Number(worker.last_known_lat);
+                const lng = Number(worker.last_known_lng);
+                if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+                    await redisClient.geoAdd(REDIS_WORKERS_GEO_KEY, {
+                        longitude: lng,
+                        latitude: lat,
+                        member: workerId
+                    });
+                }
+            } else {
+                await redisClient.zRem(REDIS_WORKERS_GEO_KEY, workerId);
+            }
+        }
+        return isAvailable;
+    } catch (err) {
+        console.error('Error in syncWorkerAvailability:', err);
+        return false;
+    }
+};
+
 // 1. Worker Registration (from authController.ts)
 export const registerWorker = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -157,6 +196,7 @@ export const updateLocation = async (req: Request, res: Response): Promise<void>
 export const getWorkerStatus = async (req: Request, res: Response): Promise<void> => {
     try {
         const { workerId } = req.params;
+        await syncWorkerAvailability(workerId);
         const result = await pool.query('SELECT * FROM workers WHERE worker_id = $1', [workerId]);
 
         if (result.rows.length === 0) {
@@ -185,7 +225,12 @@ export const acceptShift = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        res.status(200).json({ success: true, shift: result.rows[0] });
+        const shift = result.rows[0];
+        if (shift.worker_id) {
+            await syncWorkerAvailability(shift.worker_id);
+        }
+
+        res.status(200).json({ success: true, shift });
     } catch (error: any) {
         console.error('Error in acceptShift:', error);
         res.status(500).json({ success: false, error: error.message });
@@ -208,7 +253,12 @@ export const startShift = async (req: Request, res: Response): Promise<void> => 
             return;
         }
 
-        res.status(200).json({ success: true, shift: result.rows[0] });
+        const shift = result.rows[0];
+        if (shift.worker_id) {
+            await syncWorkerAvailability(shift.worker_id);
+        }
+
+        res.status(200).json({ success: true, shift });
     } catch (error: any) {
         console.error('Error in startShift:', error);
         res.status(500).json({ success: false, error: error.message });
@@ -272,11 +322,9 @@ export const reconcileCash = async (req: Request, res: Response): Promise<void> 
 
         const completedShift = shiftResult.rows[0];
 
-        await pool.query(
-            'UPDATE workers SET is_available = false WHERE worker_id = $1',
-            [completedShift.worker_id]
-        );
-        await redisClient.zRem(REDIS_WORKERS_GEO_KEY, completedShift.worker_id);
+        if (completedShift.worker_id) {
+            await syncWorkerAvailability(completedShift.worker_id);
+        }
 
         const callDelay = delayMinutes !== undefined ? Number(delayMinutes) : 5;
         const callScheduleResult = await scheduleAutomatedVerificationCall(
@@ -366,6 +414,8 @@ export const getWorkerMyProfile = async (req: Request, res: Response): Promise<v
     try {
         const { workerId } = req.params;
         const targetWorkerId = Array.isArray(workerId) ? workerId[0] : workerId;
+
+        await syncWorkerAvailability(targetWorkerId);
 
         const workerRes = await pool.query(
             `SELECT * FROM workers WHERE worker_id = $1`,

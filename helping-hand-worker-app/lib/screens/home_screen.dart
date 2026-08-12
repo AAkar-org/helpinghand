@@ -14,7 +14,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  String _workerName = 'Ramesh Kumar'; // Simulated display name
+  final String _workerName = 'Ramesh Kumar'; // Simulated display name
   String _workerCategory = 'ELECTRICIAN';
   String _workerSubCategory = 'House Wiring';
   String? _workerId;
@@ -47,12 +47,19 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               // Header matching Left Panel of the mockup
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.grid_view_rounded, color: Colors.white, size: 28),
+                      icon: const Icon(
+                        Icons.grid_view_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
                       onPressed: () {},
                     ),
                     const CircleAvatar(
@@ -60,9 +67,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       backgroundColor: AppColors.primaryLight,
                       child: Text(
                         'RK',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -88,10 +98,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: AppColors.primaryLight.withOpacity(0.5),
+                              color: AppColors.primaryLight.withValues(
+                                alpha: 0.5,
+                              ),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.tune_rounded, color: Colors.white),
+                            child: const Icon(
+                              Icons.tune_rounded,
+                              color: Colors.white,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           _buildFilterChip('Fulltime', true),
@@ -203,10 +218,14 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.only(left: 8),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: isSelected ? AppColors.accentPurple : AppColors.primaryMid.withOpacity(0.6),
+        color: isSelected
+            ? AppColors.accentPurple
+            : AppColors.primaryMid.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isSelected ? AppColors.accentPurple : AppColors.primaryLight.withOpacity(0.3),
+          color: isSelected
+              ? AppColors.accentPurple
+              : AppColors.primaryLight.withValues(alpha: 0.3),
         ),
       ),
       child: Text(
@@ -245,13 +264,16 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: logoColor.withOpacity(0.15),
+                  color: logoColor.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(logoIcon, color: logoColor, size: 24),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceOff,
                   borderRadius: BorderRadius.circular(10),
@@ -320,16 +342,18 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primaryMid.withOpacity(0.5),
+        color: AppColors.primaryMid.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primaryLight.withOpacity(0.2)),
+        border: Border.all(
+          color: AppColors.primaryLight.withValues(alpha: 0.2),
+        ),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: logoBgColor.withOpacity(0.2),
+              color: logoBgColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(logoIcon, color: logoBgColor, size: 24),
@@ -366,7 +390,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white30, size: 16),
+          const Icon(
+            Icons.arrow_forward_ios_rounded,
+            color: Colors.white30,
+            size: 16,
+          ),
         ],
       ),
     );
@@ -381,32 +409,20 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: tabs,
-      ),
+      body: IndexedStack(index: _currentIndex, children: tabs),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         backgroundColor: AppColors.primaryDark,
         selectedItemColor: AppColors.accentPurple,
-        unselectedItemColor: AppColors.textDarkSecondary.withOpacity(0.6),
+        unselectedItemColor: AppColors.textDarkSecondary.withValues(alpha: 0.6),
         showSelectedLabels: true,
         showUnselectedLabels: false,
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.work),
-            label: 'Shifts',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Shifts'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );

@@ -88,7 +88,7 @@ class ApiService {
       body: jsonEncode({
         'phoneNumber': phoneNumber,
         'workerCategory': workerCategory,
-        if (workerSubCategory != null) 'workerSubCategory': workerSubCategory,
+        'workerSubCategory': ?workerSubCategory,
       }),
     );
     return jsonDecode(response.body);
@@ -107,8 +107,8 @@ class ApiService {
       body: jsonEncode({
         'workerId': workerId,
         'isAvailable': isAvailable,
-        if (lat != null) 'lat': lat,
-        if (lng != null) 'lng': lng,
+        'lat': ?lat,
+        'lng': ?lng,
       }),
     );
     return jsonDecode(response.body);
@@ -122,43 +122,51 @@ class ApiService {
     final response = await http.post(
       Uri.parse('$baseUrl/worker/location'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'workerId': workerId,
-        'lat': lat,
-        'lng': lng,
-      }),
+      body: jsonEncode({'workerId': workerId, 'lat': lat, 'lng': lng}),
     );
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> getWorkerStatus(String workerId) async {
-    final response = await http.get(Uri.parse('$baseUrl/worker/status/$workerId'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/worker/status/$workerId'),
+    );
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> getWorkerProfile(String workerId) async {
-    final response = await http.get(Uri.parse('$baseUrl/worker/profile/$workerId'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/worker/profile/$workerId'),
+    );
     return jsonDecode(response.body);
   }
 
   // 4. Shift Management APIs
   Future<Map<String, dynamic>> getWorkerShifts(String workerId) async {
-    final response = await http.get(Uri.parse('$baseUrl/worker/shifts/user/$workerId'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/worker/shifts/user/$workerId'),
+    );
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> getShiftById(String shiftId) async {
-    final response = await http.get(Uri.parse('$baseUrl/worker/shifts/$shiftId'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/worker/shifts/$shiftId'),
+    );
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> acceptShift(String shiftId) async {
-    final response = await http.patch(Uri.parse('$baseUrl/worker/shifts/$shiftId/accept'));
+    final response = await http.patch(
+      Uri.parse('$baseUrl/worker/shifts/$shiftId/accept'),
+    );
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> startShift(String shiftId) async {
-    final response = await http.patch(Uri.parse('$baseUrl/worker/shifts/$shiftId/start'));
+    final response = await http.patch(
+      Uri.parse('$baseUrl/worker/shifts/$shiftId/start'),
+    );
     return jsonDecode(response.body);
   }
 
@@ -203,7 +211,7 @@ class ApiService {
         'revieweeId': revieweeId,
         'reviewerRole': 'worker',
         'ratingStars': ratingStars.toInt(),
-        if (reviewComment != null) 'reviewComment': reviewComment,
+        'reviewComment': ?reviewComment,
       }),
     );
     return jsonDecode(response.body);

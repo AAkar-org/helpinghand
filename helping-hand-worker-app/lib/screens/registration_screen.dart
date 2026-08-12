@@ -14,7 +14,7 @@ class RegistrationScreen extends StatefulWidget {
 class _RegistrationScreenState extends State<RegistrationScreen> {
   final _subCategoryController = TextEditingController();
   final _apiService = ApiService();
-  
+
   String? _selectedCategory;
   bool _isLoading = false;
   String? _errorMessage;
@@ -49,8 +49,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       final res = await _apiService.registerWorker(
         phoneNumber: widget.phoneNumber,
         workerCategory: _selectedCategory!,
-        workerSubCategory: _subCategoryController.text.trim().isEmpty 
-            ? null 
+        workerSubCategory: _subCategoryController.text.trim().isEmpty
+            ? null
             : _subCategoryController.text.trim(),
       );
 
@@ -119,13 +119,18 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.statusRed.withOpacity(0.15),
+                            color: AppColors.statusRed.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.statusRed.withOpacity(0.4)),
+                            border: Border.all(
+                              color: AppColors.statusRed.withValues(alpha: 0.4),
+                            ),
                           ),
                           child: Text(
                             _errorMessage!,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -141,30 +146,36 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                          childAspectRatio: 1.3,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                              childAspectRatio: 1.3,
+                            ),
                         itemCount: _categories.length,
                         itemBuilder: (context, index) {
                           final cat = _categories[index];
                           final isSelected = _selectedCategory == cat['name'];
                           return InkWell(
-                            onTap: () => setState(() => _selectedCategory = cat['name']),
+                            onTap: () =>
+                                setState(() => _selectedCategory = cat['name']),
                             borderRadius: BorderRadius.circular(16),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               decoration: BoxDecoration(
-                                color: isSelected 
-                                    ? AppColors.accentPurple 
-                                    : AppColors.primaryMid.withOpacity(0.6),
+                                color: isSelected
+                                    ? AppColors.accentPurple
+                                    : AppColors.primaryMid.withValues(
+                                        alpha: 0.6,
+                                      ),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: isSelected 
-                                      ? AppColors.accentPurple 
-                                      : AppColors.primaryLight.withOpacity(0.5),
+                                  color: isSelected
+                                      ? AppColors.accentPurple
+                                      : AppColors.primaryLight.withValues(
+                                          alpha: 0.5,
+                                        ),
                                   width: 1.5,
                                 ),
                               ),
@@ -204,7 +215,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
                           hintText: 'e.g. Tile Fitting, House Wiring',
-                          prefixIcon: Icon(Icons.star_border, color: AppColors.textDarkSecondary),
+                          prefixIcon: Icon(
+                            Icons.star_border,
+                            color: AppColors.textDarkSecondary,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 40),
@@ -213,7 +227,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 20,
+                ),
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _register,
                   style: ElevatedButton.styleFrom(
@@ -223,7 +240,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
                         )
                       : const Text('Complete Onboarding'),
                 ),

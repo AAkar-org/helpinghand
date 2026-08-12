@@ -10,11 +10,9 @@ class AppTheme {
         primary: AppColors.accentPurple,
         secondary: AppColors.primaryLight,
         surface: AppColors.primaryMid,
-        background: AppColors.primaryDark,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: AppColors.textDarkPrimary,
-        onBackground: AppColors.textDarkPrimary,
       ),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
@@ -45,7 +43,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.primaryLight.withOpacity(0.4),
+        fillColor: AppColors.primaryLight.withValues(alpha: 0.4),
         hintStyle: const TextStyle(
           color: AppColors.textDarkSecondary,
           fontSize: 14,
@@ -61,7 +59,7 @@ class AppTheme {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-            color: AppColors.primaryLight.withOpacity(0.5),
+            color: AppColors.primaryLight.withValues(alpha: 0.5),
             width: 1.5,
           ),
         ),
@@ -93,11 +91,9 @@ class AppTheme {
         primary: AppColors.accentPurple,
         secondary: AppColors.primaryMid,
         surface: AppColors.surfaceWhite,
-        background: AppColors.surfaceOff,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: AppColors.textLightPrimary,
-        onBackground: AppColors.textLightPrimary,
       ),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(

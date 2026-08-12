@@ -557,7 +557,7 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
           label,
           style: TextStyle(
             color: isSubtext
-                ? AppColors.textLightSecondary.withOpacity(0.8)
+                ? AppColors.textLightSecondary.withValues(alpha: 0.8)
                 : AppColors.textLightSecondary,
             fontSize: isSubtext ? 11 : 13,
             fontStyle: isSubtext ? FontStyle.italic : FontStyle.normal,

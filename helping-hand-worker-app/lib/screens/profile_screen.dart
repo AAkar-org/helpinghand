@@ -175,127 +175,175 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Top Section (Mockup Right Side Style)
-            Container(
-              decoration: const BoxDecoration(
-                color: AppColors.primaryDark,
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      body: Column(
+        children: [
+          // 1. Fixed Top Header Banner (Doesn't scroll)
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.primaryDark, AppColors.primaryMid],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
               ),
-              padding: const EdgeInsets.only(top: 60, bottom: 28),
-              child: Column(
-                children: [
-                  // Title Bar & Logout Button
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const BackButton(color: Colors.white),
-                        Text(
-                          isAvailable ? 'Available' : 'Unavailable',
-                          style: const TextStyle(
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+            ),
+            padding: const EdgeInsets.only(top: 50, bottom: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Title Bar with centered screen title & Logout Button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    children: [
+                      if (Navigator.canPop(context))
+                        const BackButton(color: Colors.white)
+                      else
+                        const Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: Icon(Icons.person_outline, color: Colors.white70),
+                        ),
+                      const Expanded(
+                        child: Text(
+                          'My Profile',
+                          style: TextStyle(
                             color: Colors.white,
-                            fontSize: 24,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
+                          textAlign: TextAlign.center,
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.logout_rounded, color: Colors.white70),
-                          onPressed: _logout,
-                        )
-                      ],
-                    ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.logout_rounded, color: Colors.white70),
+                        onPressed: _logout,
+                      )
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  // Availability Update Toggle Pill
-                  ElevatedButton(
-                    onPressed: _isToggling ? null : _toggleAvailability,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isAvailable ? AppColors.statusGreen : AppColors.accentPurple,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      minimumSize: Size.zero,
-                    ),
-                    child: _isToggling
-                        ? const SizedBox(
-                            height: 14,
-                            width: 14,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 1.5),
-                          )
-                        : Text(
-                            isAvailable ? 'GO OFFLINE' : 'UPDATE STATUS',
-                            style: const TextStyle(fontSize: 11, letterSpacing: 0.8),
-                          ),
-                  ),
-                  const SizedBox(height: 24),
-                  // User Avatar & Category Details
-                  Center(
-                    child: Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: Colors.white,
-                          child: CircleAvatar(
-                            radius: 46,
-                            backgroundColor: Colors.grey[200],
-                            child: const Icon(Icons.person, size: 50, color: AppColors.primaryDark),
-                          ),
+                ),
+                const SizedBox(height: 12),
+                
+                // User Avatar with dynamic online/offline dot indicator
+                Center(
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      CircleAvatar(
+                        radius: 46,
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        child: CircleAvatar(
+                          radius: 42,
+                          backgroundColor: Colors.grey[100],
+                          child: const Icon(Icons.person, size: 48, color: AppColors.primaryDark),
                         ),
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                            color: AppColors.statusGreen,
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: isAvailable ? AppColors.statusGreen : Colors.orange,
                             shape: BoxShape.circle,
                           ),
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
                         ),
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                
+                // Simulated name & Real phone number from session
+                Text(
+                  'Ramesh Kumar', 
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '+91 ${data['phoneNumber'] ?? ''}',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Availability Pill Badge (Read-only, managed automatically)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isAvailable 
+                        ? AppColors.statusGreen.withOpacity(0.15) 
+                        : Colors.orange.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isAvailable 
+                          ? AppColors.statusGreen.withOpacity(0.35) 
+                          : Colors.orange.withOpacity(0.35),
+                      width: 1.2,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Ramesh Kumar', // Static simulated name
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: isAvailable ? AppColors.statusGreen : Colors.orange,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isAvailable ? 'AVAILABLE FOR SHIFTS' : 'OCCUPIED / BUSY',
+                        style: TextStyle(
+                          color: isAvailable ? Colors.white : Colors.orangeAccent[100],
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    data['workerCategory'] ?? 'Worker',
-                    style: const TextStyle(color: AppColors.textDarkSecondary, fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+                
+                // Translucent glassmorphic Stats Card
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
                   ),
-                  const SizedBox(height: 28),
-                  // Stats Row
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildStatCol(data['totalCompletedShifts']?.toString() ?? '0', 'Completed'),
-                        _buildStatDivider(),
-                        _buildStatCol(data['totalRatingsCount']?.toString() ?? '0', 'Ratings'),
-                        _buildStatDivider(),
-                        _buildStatCol('${data['trustScore'] ?? '5.0'} ⭐', 'Trust Score'),
-                      ],
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStatCol(data['totalCompletedShifts']?.toString() ?? '0', 'Completed'),
+                      _buildStatDivider(),
+                      _buildStatCol(data['totalRatingsCount']?.toString() ?? '0', 'Ratings'),
+                      _buildStatDivider(),
+                      _buildStatCol('${data['trustScore'] ?? '5.0'} ⭐', 'Trust Score'),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            
-            // Bottom Content
-            Padding(
+          ),
+          
+          // 2. Scrollable Body Content (Skills, Experience, Reviews)
+          Expanded(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,13 +354,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       _buildSkillChip(data['workerCategory'] ?? 'General'),
-                      if (data['workerSubCategory'] != null && data['workerSubCategory'].toString().isNotEmpty) ...[
-                        const SizedBox(width: 8),
+                      if (data['workerSubCategory'] != null && data['workerSubCategory'].toString().isNotEmpty)
                         _buildSkillChip(data['workerSubCategory']!),
-                      ],
                     ],
                   ),
                   const SizedBox(height: 28),
@@ -356,9 +404,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ...ratingList.take(2).map((r) => _buildReviewItem(r)),
                 ],
               ),
-            )
-          ],
-        ),
+            ),
+          )
+        ],
       ),
     );
   }
@@ -460,39 +508,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildReviewItem(dynamic review) {
+    final rating = (review['stars'] as num?)?.toInt() ?? 5;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade100),
+        color: Colors.grey[50],
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                review['reviewerName'] ?? 'Anonymous',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: AppColors.accentPurple.withOpacity(0.1),
+                child: Text(
+                  (review['reviewerName'] ?? 'A')[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: AppColors.accentPurple,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  review['reviewerName'] ?? 'Anonymous',
+                  style: const TextStyle(
+                    color: AppColors.textLightPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
               ),
               Row(
                 children: List.generate(5, (index) {
-                  final rating = (review['stars'] as num?)?.toInt() ?? 5;
                   return Icon(
                     Icons.star,
-                    size: 14,
-                    color: index < rating ? Colors.amber : Colors.grey.shade200,
+                    size: 12,
+                    color: index < rating ? Colors.amber : Colors.grey.shade300,
                   );
                 }),
               )
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             review['comment'] ?? 'No comment provided.',
-            style: const TextStyle(color: AppColors.textLightSecondary, fontSize: 12),
+            style: const TextStyle(
+              color: AppColors.textLightSecondary,
+              fontSize: 12,
+              height: 1.4,
+            ),
           ),
         ],
       ),

@@ -10,7 +10,8 @@ class ShiftsScreen extends StatefulWidget {
   State<ShiftsScreen> createState() => _ShiftsScreenState();
 }
 
-class _ShiftsScreenState extends State<ShiftsScreen> with SingleTickerProviderStateMixin {
+class _ShiftsScreenState extends State<ShiftsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _apiService = ApiService();
 
@@ -36,7 +37,7 @@ class _ShiftsScreenState extends State<ShiftsScreen> with SingleTickerProviderSt
     try {
       final session = await _apiService.getSession();
       final workerId = session['workerId'];
-      
+
       if (workerId == null) {
         setState(() {
           _errorMessage = 'No active worker session found';
@@ -115,17 +116,28 @@ class _ShiftsScreenState extends State<ShiftsScreen> with SingleTickerProviderSt
               children: [
                 Text(
                   'Shift #${shift['shift_id'].toString().substring(0, 8)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textLightSecondary),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: AppColors.textLightSecondary,
+                  ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: badgeColor.withOpacity(0.12),
+                    color: badgeColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     status,
-                    style: TextStyle(color: badgeColor, fontSize: 10, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: badgeColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -136,21 +148,33 @@ class _ShiftsScreenState extends State<ShiftsScreen> with SingleTickerProviderSt
                 const SizedBox(height: 8),
                 Text(
                   'Agreed Wage: ₹$wage',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textLightPrimary),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textLightPrimary,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Created At: ${DateTime.parse(shift['created_at']).toLocal().toString().substring(0, 16)}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textLightSecondary),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textLightSecondary,
+                  ),
                 ),
               ],
             ),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black26),
+            trailing: const Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: Colors.black26,
+            ),
             onTap: () async {
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ShiftDetailScreen(shiftId: shift['shift_id']),
+                  builder: (context) =>
+                      ShiftDetailScreen(shiftId: shift['shift_id']),
                 ),
               );
               if (result == true) {
@@ -170,7 +194,10 @@ class _ShiftsScreenState extends State<ShiftsScreen> with SingleTickerProviderSt
       appBar: AppBar(
         backgroundColor: AppColors.primaryDark,
         elevation: 0,
-        title: const Text('My Shifts', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: const Text(
+          'My Shifts',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
@@ -191,26 +218,34 @@ class _ShiftsScreenState extends State<ShiftsScreen> with SingleTickerProviderSt
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.accentPurple))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.accentPurple),
+            )
           : _errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 12),
-                      ElevatedButton(onPressed: _loadShifts, child: const Text('Retry')),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
                   ),
-                )
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildShiftsList(_filterShifts(['PENDING', 'ACCEPTED'])),
-                    _buildShiftsList(_filterShifts(['ACTIVE'])),
-                    _buildShiftsList(_filterShifts(['COMPLETED', 'CANCELLED'])),
-                  ],
-                ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _loadShifts,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildShiftsList(_filterShifts(['PENDING', 'ACCEPTED'])),
+                _buildShiftsList(_filterShifts(['ACTIVE'])),
+                _buildShiftsList(_filterShifts(['COMPLETED', 'CANCELLED'])),
+              ],
+            ),
     );
   }
 }

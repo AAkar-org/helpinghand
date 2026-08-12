@@ -4,11 +4,9 @@ import cors from 'cors';
 import pool from './db/db.js';
 import redisClient from './db/redisClient.js';
 
-import authRoutes from './routes/authRoutes.js';
-import supplyRoutes from './routes/supplyRoutes.js';
-import demandRoutes from './routes/demandRoutes.js';
-import shiftRoutes from './routes/shiftRoutes.js';
-import ratingRoutes from './routes/ratingRoutes.js';
+import authRoutes from './modules/shared/auth.routes.js';
+import workerRoutes from './modules/worker/worker.routes.js';
+import employerRoutes from './modules/employer/employer.routes.js';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -32,11 +30,8 @@ app.get('/health', async (req: Request, res: Response) => {
 });
 
 app.use('/api/auth', authRoutes);
-app.use('/api/supply', supplyRoutes);
-app.use('/api/demand', demandRoutes);
-app.use('/api/shifts', shiftRoutes);
-app.use('/api/ratings', ratingRoutes);
-app.use('/api', ratingRoutes);
+app.use('/api/worker', workerRoutes);
+app.use('/api/employer', employerRoutes);
 
 app.use((req: Request, res: Response) => {
     res.status(404).json({ success: false, error: `Route not found: ${req.method} ${req.url}` });

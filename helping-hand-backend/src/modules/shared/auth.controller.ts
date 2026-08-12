@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import pool from '../db/db.js';
-import redisClient from '../db/redisClient.js';
+import pool from '../../db/db.js';
+import redisClient from '../../db/redisClient.js';
 
 export const sendOtp = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -85,74 +85,6 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
         });
     } catch (error: any) {
         console.error('Error in verifyOtp:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-};
-
-export const registerWorker = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const { phoneNumber, workerCategory, workerSubCategory } = req.body;
-        if (!phoneNumber || !workerCategory) {
-            res.status(400).json({
-                success: false,
-                error: 'phoneNumber and workerCategory are required'
-            });
-            return;
-        }
-
-        const cleanedPhone = phoneNumber.trim();
-
-        const result = await pool.query(
-            `INSERT INTO workers (phone_number, worker_category, worker_sub_category, is_available)
-             VALUES ($1, $2, $3, false)
-             ON CONFLICT (phone_number) DO UPDATE 
-             SET worker_category = EXCLUDED.worker_category,
-                 worker_sub_category = EXCLUDED.worker_sub_category
-             RETURNING *`,
-            [cleanedPhone, workerCategory.trim(), workerSubCategory ? workerSubCategory.trim() : null]
-        );
-
-        res.status(201).json({
-            success: true,
-            role: 'worker',
-            user: result.rows[0]
-        });
-    } catch (error: any) {
-        console.error('Error in registerWorker:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-};
-
-export const registerEmployer = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const { phoneNumber, fullName, upiId } = req.body;
-        if (!phoneNumber || !fullName) {
-            res.status(400).json({
-                success: false,
-                error: 'phoneNumber and fullName are required'
-            });
-            return;
-        }
-
-        const cleanedPhone = phoneNumber.trim();
-
-        const result = await pool.query(
-            `INSERT INTO employers (phone_number, full_name, upi_id)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (phone_number) DO UPDATE
-             SET full_name = EXCLUDED.full_name,
-                 upi_id = COALESCE(EXCLUDED.upi_id, employers.upi_id)
-             RETURNING *`,
-            [cleanedPhone, fullName.trim(), upiId ? upiId.trim() : null]
-        );
-
-        res.status(201).json({
-            success: true,
-            role: 'employer',
-            user: result.rows[0]
-        });
-    } catch (error: any) {
-        console.error('Error in registerEmployer:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 };

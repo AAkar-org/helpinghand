@@ -3,11 +3,9 @@ import express from 'express';
 import cors from 'cors';
 import pool from './db/db.js';
 import redisClient from './db/redisClient.js';
-import authRoutes from './routes/authRoutes.js';
-import supplyRoutes from './routes/supplyRoutes.js';
-import demandRoutes from './routes/demandRoutes.js';
-import shiftRoutes from './routes/shiftRoutes.js';
-import ratingRoutes from './routes/ratingRoutes.js';
+import authRoutes from './modules/shared/auth.routes.js';
+import workerRoutes from './modules/worker/worker.routes.js';
+import employerRoutes from './modules/employer/employer.routes.js';
 import { Server } from 'http';
 
 const app = express();
@@ -30,11 +28,8 @@ app.get('/health', async (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
-app.use('/api/supply', supplyRoutes);
-app.use('/api/demand', demandRoutes);
-app.use('/api/shifts', shiftRoutes);
-app.use('/api/ratings', ratingRoutes);
-app.use('/api', ratingRoutes);
+app.use('/api/worker', workerRoutes);
+app.use('/api/employer', employerRoutes);
 
 async function runComprehensiveEndpointTests() {
     console.log('🚀 Starting Comprehensive API Endpoint Suite Test with Mock Data...\n');
@@ -139,8 +134,8 @@ async function runComprehensiveEndpointTests() {
         console.log('   Status:', verifyOtpRes.status, 'Response:', await verifyOtpRes.json());
 
         // 4. Auth: Register Worker
-        console.log('\n4️⃣ Testing POST /api/auth/register-worker');
-        const regWorkerRes = await fetch(`${BASE_URL}/api/auth/register-worker`, {
+        console.log('\n4️⃣ Testing POST /api/worker/register');
+        const regWorkerRes = await fetch(`${BASE_URL}/api/worker/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -154,8 +149,8 @@ async function runComprehensiveEndpointTests() {
         console.log('   Status:', regWorkerRes.status, 'Worker ID:', workerId);
 
         // 5. Auth: Register Employer
-        console.log('\n5️⃣ Testing POST /api/auth/register-employer');
-        const regEmpRes = await fetch(`${BASE_URL}/api/auth/register-employer`, {
+        console.log('\n5️⃣ Testing POST /api/employer/register');
+        const regEmpRes = await fetch(`${BASE_URL}/api/employer/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -169,8 +164,8 @@ async function runComprehensiveEndpointTests() {
         console.log('   Status:', regEmpRes.status, 'Employer ID:', employerId);
 
         // 6. Supply: Toggle Availability
-        console.log('\n6️⃣ Testing POST /api/supply/toggle-availability');
-        const toggleRes = await fetch(`${BASE_URL}/api/supply/toggle-availability`, {
+        console.log('\n6️⃣ Testing POST /api/worker/toggle-availability');
+        const toggleRes = await fetch(`${BASE_URL}/api/worker/toggle-availability`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -183,8 +178,8 @@ async function runComprehensiveEndpointTests() {
         console.log('   Status:', toggleRes.status, 'Response:', await toggleRes.json());
 
         // 7. Supply: Update Location
-        console.log('\n7️⃣ Testing POST /api/supply/location');
-        const locRes = await fetch(`${BASE_URL}/api/supply/location`, {
+        console.log('\n7️⃣ Testing POST /api/worker/location');
+        const locRes = await fetch(`${BASE_URL}/api/worker/location`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -196,19 +191,19 @@ async function runComprehensiveEndpointTests() {
         console.log('   Status:', locRes.status, 'Response:', await locRes.json());
 
         // 8. Supply: Get Worker Status
-        console.log('\n8️⃣ Testing GET /api/supply/status/:workerId');
-        const statusRes = await fetch(`${BASE_URL}/api/supply/status/${workerId}`);
+        console.log('\n8️⃣ Testing GET /api/worker/status/:workerId');
+        const statusRes = await fetch(`${BASE_URL}/api/worker/status/${workerId}`);
         console.log('   Status:', statusRes.status, 'Response:', await statusRes.json());
 
         // 9. Demand: Find Nearby Workers
-        console.log('\n9️⃣ Testing GET /api/demand/nearby-workers');
-        const nearbyRes = await fetch(`${BASE_URL}/api/demand/nearby-workers?lat=18.5205&lng=73.8568&radiusKm=5&category=ELECTRICIAN`);
+        console.log('\n9️⃣ Testing GET /api/employer/nearby-workers');
+        const nearbyRes = await fetch(`${BASE_URL}/api/employer/nearby-workers?lat=18.5205&lng=73.8568&radiusKm=5&category=ELECTRICIAN`);
         const nearbyData = await nearbyRes.json();
         console.log('   Status:', nearbyRes.status, 'Found Workers Count:', nearbyData.count);
 
         // 10. Shifts: Create Shift
-        console.log('\n🔟 Testing POST /api/shifts/create');
-        const createShiftRes = await fetch(`${BASE_URL}/api/shifts/create`, {
+        console.log('\n🔟 Testing POST /api/employer/shifts/create');
+        const createShiftRes = await fetch(`${BASE_URL}/api/employer/shifts/create`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -222,22 +217,22 @@ async function runComprehensiveEndpointTests() {
         console.log('   Status:', createShiftRes.status, 'Created Shift ID:', shiftId);
 
         // 11. Shifts: Accept Shift
-        console.log('\n1️⃣1️⃣ Testing PATCH /api/shifts/:shiftId/accept');
-        const acceptRes = await fetch(`${BASE_URL}/api/shifts/${shiftId}/accept`, {
+        console.log('\n1️⃣1️⃣ Testing PATCH /api/worker/shifts/:shiftId/accept');
+        const acceptRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/accept`, {
             method: 'PATCH'
         });
         console.log('   Status:', acceptRes.status, 'Response Status:', (await acceptRes.json()).shift.status);
 
         // 12. Shifts: Start Shift
-        console.log('\n1️⃣2️⃣ Testing PATCH /api/shifts/:shiftId/start');
-        const startRes = await fetch(`${BASE_URL}/api/shifts/${shiftId}/start`, {
+        console.log('\n1️⃣2️⃣ Testing PATCH /api/worker/shifts/:shiftId/start');
+        const startRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/start`, {
             method: 'PATCH'
         });
         console.log('   Status:', startRes.status, 'Response Status:', (await startRes.json()).shift.status);
 
         // 13. Shifts: Adjust Shift Timing (4 hours => pro-rated wage ₹500)
-        console.log('\n1️⃣3️⃣ Testing PATCH /api/shifts/:shiftId/adjust-timing');
-        const adjustRes = await fetch(`${BASE_URL}/api/shifts/${shiftId}/adjust-timing`, {
+        console.log('\n1️⃣3️⃣ Testing PATCH /api/employer/shifts/:shiftId/adjust-timing');
+        const adjustRes = await fetch(`${BASE_URL}/api/employer/shifts/${shiftId}/adjust-timing`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -249,8 +244,8 @@ async function runComprehensiveEndpointTests() {
         console.log('   Status:', adjustRes.status, 'Adjusted Wage:', adjustData.shift.adjusted_wage);
 
         // 14. Shifts: Reconcile Cash
-        console.log('\n1️⃣4️⃣ Testing POST /api/shifts/:shiftId/reconcile-cash');
-        const reconcileRes = await fetch(`${BASE_URL}/api/shifts/${shiftId}/reconcile-cash`, {
+        console.log('\n1️⃣4️⃣ Testing POST /api/worker/shifts/:shiftId/reconcile-cash');
+        const reconcileRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/reconcile-cash`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -267,15 +262,15 @@ async function runComprehensiveEndpointTests() {
         console.log('   Status:', reconcileRes.status, 'Reconciliation Verified:', reconcileData.verified);
 
         // 15. Shifts: IVR Keypress Webhook Callbacks
-        console.log('\n1️⃣5️⃣ Testing POST /api/shifts/:shiftId/ivr-callback');
-        const workerIvrRes = await fetch(`${BASE_URL}/api/shifts/${shiftId}/ivr-callback`, {
+        console.log('\n1️⃣5️⃣ Testing POST /api/worker/shifts/:shiftId/ivr-callback');
+        const workerIvrRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/ivr-callback`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ role: 'worker', dtmfDigit: '1' })
         });
         console.log('   Worker Call Response:', await workerIvrRes.json());
 
-        const empIvrRes = await fetch(`${BASE_URL}/api/shifts/${shiftId}/ivr-callback`, {
+        const empIvrRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/ivr-callback`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ role: 'employer', dtmfDigit: '1' })
@@ -283,19 +278,19 @@ async function runComprehensiveEndpointTests() {
         console.log('   Employer Call Response:', await empIvrRes.json());
 
         // 16. Shifts: Get Shift Details
-        console.log('\n1️⃣6️⃣ Testing GET /api/shifts/:shiftId');
-        const shiftDetailsRes = await fetch(`${BASE_URL}/api/shifts/${shiftId}`);
+        console.log('\n1️⃣6️⃣ Testing GET /api/worker/shifts/:shiftId');
+        const shiftDetailsRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}`);
         const shiftDetailsData = await shiftDetailsRes.json();
         console.log('   Status:', shiftDetailsRes.status, 'Final Verification Call Status:', shiftDetailsData.shift.verification_call_status);
 
         // 17. Shifts: Get Shifts By User
-        console.log('\n1️⃣7️⃣ Testing GET /api/shifts/user/:userId?role=employer');
-        const userShiftsRes = await fetch(`${BASE_URL}/api/shifts/user/${employerId}?role=employer`);
+        console.log('\n1️⃣7️⃣ Testing GET /api/employer/shifts/user/:userId');
+        const userShiftsRes = await fetch(`${BASE_URL}/api/employer/shifts/user/${employerId}`);
         console.log('   Status:', userShiftsRes.status, 'Shifts Count:', (await userShiftsRes.json()).count);
 
         // 18. Ratings: Submit Rating & Review
-        console.log('\n1️⃣8️⃣ Testing POST /api/ratings/submit');
-        const ratingRes = await fetch(`${BASE_URL}/api/ratings/submit`, {
+        console.log('\n1️⃣8️⃣ Testing POST /api/employer/ratings/submit');
+        const ratingRes = await fetch(`${BASE_URL}/api/employer/ratings/submit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -311,14 +306,14 @@ async function runComprehensiveEndpointTests() {
         console.log('   Status:', ratingRes.status, 'Rating Stars:', ratingData.rating.rating_stars);
 
         // 19. Workers: Employer App Map Quick Summary Card
-        console.log('\n1️⃣9️⃣ Testing GET /api/workers/:workerId/summary (Employer Map Quick Card)');
-        const mapSummaryRes = await fetch(`${BASE_URL}/api/workers/${workerId}/summary`);
+        console.log('\n1️⃣9️⃣ Testing GET /api/employer/workers/:workerId/summary (Employer Map Quick Card)');
+        const mapSummaryRes = await fetch(`${BASE_URL}/api/employer/workers/${workerId}/summary`);
         const mapSummaryData = await mapSummaryRes.json();
         console.log('   Status:', mapSummaryRes.status, 'Card Data:', JSON.stringify(mapSummaryData.mapSummaryCard));
 
         // 20. Workers: Worker App Profile & Work Portfolio
-        console.log('\n2️⃣0️⃣ Testing GET /api/workers/:workerId/my-profile (Worker App Profile)');
-        const profileRes = await fetch(`${BASE_URL}/api/workers/${workerId}/my-profile`);
+        console.log('\n2️⃣0️⃣ Testing GET /api/worker/profile/:workerId (Worker App Profile)');
+        const profileRes = await fetch(`${BASE_URL}/api/worker/profile/${workerId}`);
         const profileData = await profileRes.json();
         console.log('   Status:', profileRes.status, 'Completed Shifts Count:', profileData.workerProfile.totalCompletedShifts, 'Average Rating:', profileData.workerProfile.averageRating);
 

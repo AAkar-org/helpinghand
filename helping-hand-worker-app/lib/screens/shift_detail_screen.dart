@@ -13,7 +13,7 @@ class ShiftDetailScreen extends StatefulWidget {
 
 class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
   final _apiService = ApiService();
-  
+
   Map<String, dynamic>? _shift;
   bool _isLoading = true;
   bool _isActionLoading = false;
@@ -35,7 +35,9 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
           _errorMessage = null;
         });
       } else {
-        setState(() => _errorMessage = res['error'] ?? 'Failed to load details');
+        setState(
+          () => _errorMessage = res['error'] ?? 'Failed to load details',
+        );
       }
     } catch (e) {
       setState(() => _errorMessage = 'Failed to load details: ${e.toString()}');
@@ -51,16 +53,25 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
       if (res['success'] == true) {
         setState(() => _shift = res['shift']);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Shift accepted!'), backgroundColor: AppColors.statusGreen),
+          const SnackBar(
+            content: Text('Shift accepted!'),
+            backgroundColor: AppColors.statusGreen,
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res['error'] ?? 'Accept failed'), backgroundColor: AppColors.statusRed),
+          SnackBar(
+            content: Text(res['error'] ?? 'Accept failed'),
+            backgroundColor: AppColors.statusRed,
+          ),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.statusRed),
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: AppColors.statusRed,
+        ),
       );
     } finally {
       setState(() => _isActionLoading = false);
@@ -74,16 +85,25 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
       if (res['success'] == true) {
         setState(() => _shift = res['shift']);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Shift started!'), backgroundColor: AppColors.statusGreen),
+          const SnackBar(
+            content: Text('Shift started!'),
+            backgroundColor: AppColors.statusGreen,
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res['error'] ?? 'Start failed'), backgroundColor: AppColors.statusRed),
+          SnackBar(
+            content: Text(res['error'] ?? 'Start failed'),
+            backgroundColor: AppColors.statusRed,
+          ),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.statusRed),
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: AppColors.statusRed,
+        ),
       );
     } finally {
       setState(() => _isActionLoading = false);
@@ -102,7 +122,8 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+      if (permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse) {
         final position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high,
         );
@@ -132,7 +153,9 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         setState(() => _shift = res['shift']);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(res['message'] ?? 'Physical cash reconciled successfully!'),
+            content: Text(
+              res['message'] ?? 'Physical cash reconciled successfully!',
+            ),
             backgroundColor: AppColors.statusGreen,
           ),
         );
@@ -146,7 +169,10 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.statusRed),
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: AppColors.statusRed,
+        ),
       );
     } finally {
       setState(() => _isActionLoading = false);
@@ -164,8 +190,13 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Rate Employer', style: TextStyle(fontWeight: FontWeight.bold)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text(
+                'Rate Employer',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -178,7 +209,9 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
                         icon: Icon(
                           Icons.star,
                           size: 32,
-                          color: index < stars ? Colors.amber : Colors.grey.shade300,
+                          color: index < stars
+                              ? Colors.amber
+                              : Colors.grey.shade300,
                         ),
                         onPressed: () {
                           setDialogState(() => stars = (index + 1).toDouble());
@@ -193,7 +226,7 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
                       hintText: 'Add review comments (optional)',
                       border: OutlineInputBorder(),
                     ),
-                  )
+                  ),
                 ],
               ),
               actions: [
@@ -213,13 +246,18 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
                         reviewerId: workerId,
                         revieweeId: _shift!['employer_id'],
                         ratingStars: stars,
-                        reviewComment: commentController.text.trim().isEmpty ? null : commentController.text.trim(),
+                        reviewComment: commentController.text.trim().isEmpty
+                            ? null
+                            : commentController.text.trim(),
                       );
                       if (res['success'] == true) {
                         if (context.mounted) {
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Rating submitted!'), backgroundColor: AppColors.statusGreen),
+                            const SnackBar(
+                              content: Text('Rating submitted!'),
+                              backgroundColor: AppColors.statusGreen,
+                            ),
                           );
                         }
                       }
@@ -228,7 +266,7 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
                     }
                   },
                   child: const Text('Submit'),
-                )
+                ),
               ],
             );
           },
@@ -244,7 +282,9 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
     if (_isLoading) {
       return const Scaffold(
         backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator(color: AppColors.accentPurple)),
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.accentPurple),
+        ),
       );
     }
 
@@ -256,7 +296,10 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
             children: [
               Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: _loadShiftDetails, child: const Text('Retry')),
+              ElevatedButton(
+                onPressed: _loadShiftDetails,
+                child: const Text('Retry'),
+              ),
             ],
           ),
         ),
@@ -265,7 +308,8 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
 
     final shift = _shift!;
     final status = shift['status'] as String;
-    final verificationStatus = shift['verification_call_status'] as String? ?? 'NONE';
+    final verificationStatus =
+        shift['verification_call_status'] as String? ?? 'NONE';
     final wage = shift['adjusted_wage'] ?? shift['agreed_daily_wage'];
 
     return Scaffold(
@@ -273,7 +317,10 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.primaryDark,
         elevation: 0,
-        title: const Text('Shift Ledger Detail', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: const Text(
+          'Shift Ledger Detail',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
         leading: BackButton(
           color: Colors.white,
           onPressed: () => Navigator.pop(context, true),
@@ -295,21 +342,49 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
                       padding: const EdgeInsets.all(20.0),
                       child: Column(
                         children: [
-                          const Text('LEDGER STATUS', style: TextStyle(color: AppColors.textLightSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
+                          const Text(
+                            'LEDGER STATUS',
+                            style: TextStyle(
+                              color: AppColors.textLightSecondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           const SizedBox(height: 8),
-                          Text(status, style: TextStyle(color: AppColors.accentPurple, fontSize: 24, fontWeight: FontWeight.bold)),
+                          Text(
+                            status,
+                            style: TextStyle(
+                              color: AppColors.accentPurple,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           const SizedBox(height: 12),
                           const Divider(),
                           const SizedBox(height: 12),
-                          _buildDetailRow('Agreed Daily Wage', '₹${shift['agreed_daily_wage']}'),
+                          _buildDetailRow(
+                            'Agreed Daily Wage',
+                            '₹${shift['agreed_daily_wage']}',
+                          ),
                           if (shift['adjusted_wage'] != null) ...[
                             const SizedBox(height: 8),
-                            _buildDetailRow('Adjusted Wage', '₹${shift['adjusted_wage']}', isHighlight: true),
+                            _buildDetailRow(
+                              'Adjusted Wage',
+                              '₹${shift['adjusted_wage']}',
+                              isHighlight: true,
+                            ),
                             const SizedBox(height: 8),
-                            _buildDetailRow('Adjustment Reason', shift['adjustment_reason'] ?? 'Not specified', isSubtext: true),
+                            _buildDetailRow(
+                              'Adjustment Reason',
+                              shift['adjustment_reason'] ?? 'Not specified',
+                              isSubtext: true,
+                            ),
                           ],
                           const SizedBox(height: 8),
-                          _buildDetailRow('Worked Hours', '${shift['worked_hours'] ?? 8} hours'),
+                          _buildDetailRow(
+                            'Worked Hours',
+                            '${shift['worked_hours'] ?? 8} hours',
+                          ),
                         ],
                       ),
                     ),
@@ -325,21 +400,43 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('PROJECT PARTNERS', style: TextStyle(color: AppColors.textLightSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
+                          const Text(
+                            'PROJECT PARTNERS',
+                            style: TextStyle(
+                              color: AppColors.textLightSecondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           const SizedBox(height: 16),
                           Row(
                             children: [
                               CircleAvatar(
                                 backgroundColor: AppColors.surfaceOff,
-                                child: const Icon(Icons.person, color: AppColors.accentPurple),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: AppColors.accentPurple,
+                                ),
                               ),
                               const SizedBox(width: 16),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(shift['employer_name'] ?? 'Employer Name', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                  Text(
+                                    shift['employer_name'] ?? 'Employer Name',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
                                   const SizedBox(height: 2),
-                                  Text(shift['employer_phone'] ?? '', style: const TextStyle(color: AppColors.textLightSecondary, fontSize: 12)),
+                                  Text(
+                                    shift['employer_phone'] ?? '',
+                                    style: const TextStyle(
+                                      color: AppColors.textLightSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -347,14 +444,28 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
                           const SizedBox(height: 16),
                           const Divider(),
                           const SizedBox(height: 12),
-                          _buildDetailRow('GPS Verification status', verificationStatus),
+                          _buildDetailRow(
+                            'GPS Verification status',
+                            verificationStatus,
+                          ),
                           if (verificationStatus == 'VERIFIED') ...[
                             const SizedBox(height: 8),
                             const Row(
                               children: [
-                                Icon(Icons.verified, color: AppColors.statusGreen, size: 16),
+                                Icon(
+                                  Icons.verified,
+                                  color: AppColors.statusGreen,
+                                  size: 16,
+                                ),
                                 SizedBox(width: 8),
-                                Text('Cash payment verified by both parties', style: TextStyle(color: AppColors.statusGreen, fontSize: 12, fontWeight: FontWeight.bold)),
+                                Text(
+                                  'Cash payment verified by both parties',
+                                  style: TextStyle(
+                                    color: AppColors.statusGreen,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ],
                             ),
                           ],
@@ -366,7 +477,7 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
               ),
             ),
           ),
-          
+
           // Action Panel at bottom
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -374,7 +485,11 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               boxShadow: [
-                BoxShadow(color: Colors.black05, blurRadius: 10, offset: Offset(0, -2)),
+                BoxShadow(
+                  color: Colors.black,
+                  blurRadius: 10,
+                  offset: Offset(0, -2),
+                ),
               ],
             ),
             child: Column(
@@ -382,7 +497,11 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_isActionLoading)
-                  const Center(child: CircularProgressIndicator(color: AppColors.accentPurple))
+                  const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.accentPurple,
+                    ),
+                  )
                 else ...[
                   if (status == 'PENDING')
                     ElevatedButton(
@@ -402,16 +521,20 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
                   else if (status == 'COMPLETED')
                     ElevatedButton(
                       onPressed: _showRatingDialog,
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryMid),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryMid,
+                      ),
                       child: const Text('RATE EMPLOYER'),
                     )
                   else
                     ElevatedButton(
                       onPressed: null,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey,
+                      ),
                       child: const Text('SHIFT CLOSED'),
-                    )
-                ]
+                    ),
+                ],
               ],
             ),
           ),
@@ -420,7 +543,12 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isHighlight = false, bool isSubtext = false}) {
+  Widget _buildDetailRow(
+    String label,
+    String value, {
+    bool isHighlight = false,
+    bool isSubtext = false,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -428,7 +556,9 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         Text(
           label,
           style: TextStyle(
-            color: isSubtext ? AppColors.textLightSecondary.withOpacity(0.8) : AppColors.textLightSecondary,
+            color: isSubtext
+                ? AppColors.textLightSecondary.withOpacity(0.8)
+                : AppColors.textLightSecondary,
             fontSize: isSubtext ? 11 : 13,
             fontStyle: isSubtext ? FontStyle.italic : FontStyle.normal,
           ),
@@ -436,8 +566,12 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         Text(
           value,
           style: TextStyle(
-            color: isHighlight ? AppColors.accentPurple : AppColors.textLightPrimary,
-            fontWeight: isHighlight || !isSubtext ? FontWeight.bold : FontWeight.normal,
+            color: isHighlight
+                ? AppColors.accentPurple
+                : AppColors.textLightPrimary,
+            fontWeight: isHighlight || !isSubtext
+                ? FontWeight.bold
+                : FontWeight.normal,
             fontSize: isHighlight ? 15 : 13,
           ),
         ),

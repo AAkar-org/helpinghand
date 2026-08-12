@@ -33,16 +33,10 @@ class AppTheme {
           fontWeight: FontWeight.w600,
           color: AppColors.textDarkPrimary,
         ),
-        bodyLarge: TextStyle(
-          fontSize: 15,
-          color: AppColors.textDarkPrimary,
-        ),
-        bodyMedium: TextStyle(
-          fontSize: 13,
-          color: AppColors.textDarkSecondary,
-        ),
+        bodyLarge: TextStyle(fontSize: 15, color: AppColors.textDarkPrimary),
+        bodyMedium: TextStyle(fontSize: 13, color: AppColors.textDarkSecondary),
       ),
-      cardTheme: const CardTheme(
+      cardTheme: const CardThemeData(
         color: AppColors.primaryMid,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -52,15 +46,24 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.primaryLight.withOpacity(0.4),
-        hintStyle: const TextStyle(color: AppColors.textDarkSecondary, fontSize: 14),
-        labelStyle: const TextStyle(color: AppColors.textDarkPrimary, fontSize: 14),
+        hintStyle: const TextStyle(
+          color: AppColors.textDarkSecondary,
+          fontSize: 14,
+        ),
+        labelStyle: const TextStyle(
+          color: AppColors.textDarkPrimary,
+          fontSize: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.primaryLight.withOpacity(0.5), width: 1.5),
+          borderSide: BorderSide(
+            color: AppColors.primaryLight.withOpacity(0.5),
+            width: 1.5,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -113,16 +116,13 @@ class AppTheme {
           fontWeight: FontWeight.w600,
           color: AppColors.textLightPrimary,
         ),
-        bodyLarge: TextStyle(
-          fontSize: 15,
-          color: AppColors.textLightPrimary,
-        ),
+        bodyLarge: TextStyle(fontSize: 15, color: AppColors.textLightPrimary),
         bodyMedium: TextStyle(
           fontSize: 13,
           color: AppColors.textLightSecondary,
         ),
       ),
-      cardTheme: const CardTheme(
+      cardTheme: const CardThemeData(
         color: AppColors.surfaceWhite,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -132,8 +132,14 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
-        hintStyle: const TextStyle(color: AppColors.textLightSecondary, fontSize: 14),
-        labelStyle: const TextStyle(color: AppColors.textLightPrimary, fontSize: 14),
+        hintStyle: const TextStyle(
+          color: AppColors.textLightSecondary,
+          fontSize: 14,
+        ),
+        labelStyle: const TextStyle(
+          color: AppColors.textLightPrimary,
+          fontSize: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade200),

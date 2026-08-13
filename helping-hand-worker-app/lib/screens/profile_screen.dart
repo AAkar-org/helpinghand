@@ -230,7 +230,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       CircleAvatar(
                         radius: 46,
-                        backgroundColor: Colors.white.withOpacity(0.2),
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
                         child: CircleAvatar(
                           radius: 42,
                           backgroundColor: Colors.grey[100],
@@ -269,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(
                   '+91 ${data['phoneNumber'] ?? ''}',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
+                    color: Colors.white.withValues(alpha: 0.5),
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
@@ -281,13 +281,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: isAvailable 
-                        ? AppColors.statusGreen.withOpacity(0.15) 
-                        : Colors.orange.withOpacity(0.15),
+                        ? AppColors.statusGreen.withValues(alpha: 0.15) 
+                        : Colors.orange.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: isAvailable 
-                          ? AppColors.statusGreen.withOpacity(0.35) 
-                          : Colors.orange.withOpacity(0.35),
+                          ? AppColors.statusGreen.withValues(alpha: 0.35) 
+                          : Colors.orange.withValues(alpha: 0.35),
                       width: 1.2,
                     ),
                   ),
@@ -322,9 +322,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 24),
                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
+                    color: Colors.white.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -524,7 +524,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               CircleAvatar(
                 radius: 14,
-                backgroundColor: AppColors.accentPurple.withOpacity(0.1),
+                backgroundColor: AppColors.accentPurple.withValues(alpha: 0.1),
                 child: Text(
                   (review['reviewerName'] ?? 'A')[0].toUpperCase(),
                   style: const TextStyle(

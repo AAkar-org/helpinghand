@@ -160,9 +160,9 @@ class _LoginScreenState extends State<LoginScreen> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Colors.black.withOpacity(0.1),
-                    Colors.black.withOpacity(0.55),
-                    Colors.black.withOpacity(0.92),
+                    Colors.black.withValues(alpha: 0.1),
+                    Colors.black.withValues(alpha: 0.55),
+                    Colors.black.withValues(alpha: 0.92),
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
@@ -197,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     'Find verified local daily labor shifts and receive secure cash payouts at 5 PM daily.',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                       fontSize: 14,
                       height: 1.4,
                     ),
@@ -212,7 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Container(
                       height: 60,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
+                        color: Colors.white.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(30),
                         border: Border.all(color: Colors.white24, width: 1),
                       ),
@@ -477,7 +477,7 @@ class HelpingHandLogoHeader extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
+            color: Colors.white.withValues(alpha: 0.12),
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white30, width: 1),
           ),
@@ -516,7 +516,7 @@ class PhoneNumberFieldLight extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final String? errorText;
-  const PhoneNumberFieldLight({
+  const PhoneNumberFieldLight({super.key, 
     key,
     required this.controller,
     required this.onChanged,
@@ -626,7 +626,7 @@ class OtpCodeFieldLight extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final String? errorText;
-  const OtpCodeFieldLight({
+  const OtpCodeFieldLight({super.key, 
     key,
     required this.controller,
     required this.onChanged,
@@ -813,7 +813,7 @@ class _PrimaryButtonState extends State<PrimaryButton>
                     fontWeight: FontWeight.bold,
                     color: isEnabled
                         ? Colors.white
-                        : AppColors.textLightSecondary.withOpacity(0.5),
+                        : AppColors.textLightSecondary.withValues(alpha: 0.5),
                   ),
                 ),
         ),
@@ -844,13 +844,13 @@ class SecurityFooterLight extends StatelessWidget {
             Icon(
               Icons.security_outlined,
               size: 14,
-              color: AppColors.textLightSecondary.withOpacity(0.8),
+              color: AppColors.textLightSecondary.withValues(alpha: 0.8),
             ),
             const SizedBox(width: 6),
             Text(
               'Secure login • Your information is protected',
               style: TextStyle(
-                color: AppColors.textLightSecondary.withOpacity(0.8),
+                color: AppColors.textLightSecondary.withValues(alpha: 0.8),
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -878,7 +878,7 @@ class SecurityFooterLight extends StatelessWidget {
               width: 4,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.textLightSecondary.withOpacity(0.4),
+                color: AppColors.textLightSecondary.withValues(alpha: 0.4),
                 shape: BoxShape.circle,
               ),
             ),

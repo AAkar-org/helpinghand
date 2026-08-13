@@ -3,7 +3,6 @@ import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import 'shifts_screen.dart';
 import 'profile_screen.dart';
-import 'shift_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -413,9 +412,14 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
-        backgroundColor: AppColors.primaryDark,
+        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
         selectedItemColor: AppColors.accentPurple,
-        unselectedItemColor: AppColors.textDarkSecondary.withValues(alpha: 0.6),
+        unselectedItemColor: const Color.fromARGB(
+          255,
+          62,
+          32,
+          86,
+        ).withValues(alpha: 0.6),
         showSelectedLabels: true,
         showUnselectedLabels: false,
         type: BottomNavigationBarType.fixed,

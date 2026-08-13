@@ -92,8 +92,24 @@ export const toggleAvailability = async (req: Request, res: Response): Promise<v
             return;
         }
 
+        let finalAvailability = isAvailable;
+        let forcedOffline = false;
+
+        if (isAvailable) {
+            const activeShiftsRes = await pool.query(
+                `SELECT COUNT(*) FROM shifts 
+                 WHERE worker_id = $1 AND status IN ('ACCEPTED', 'ACTIVE')`,
+                [workerId]
+            );
+            const hasActiveShift = parseInt(activeShiftsRes.rows[0].count) > 0;
+            if (hasActiveShift) {
+                finalAvailability = false;
+                forcedOffline = true;
+            }
+        }
+
         let query = 'UPDATE workers SET is_available = $1';
-        const params: any[] = [isAvailable];
+        const params: any[] = [finalAvailability];
 
         if (lat !== undefined && lng !== undefined) {
             query += ', last_known_lat = $2, last_known_lng = $3 WHERE worker_id = $4 RETURNING *';
@@ -112,7 +128,7 @@ export const toggleAvailability = async (req: Request, res: Response): Promise<v
 
         const worker = result.rows[0];
 
-        if (isAvailable) {
+        if (finalAvailability) {
             const currentLat = lat ?? Number(worker.last_known_lat);
             const currentLng = lng ?? Number(worker.last_known_lng);
 
@@ -130,6 +146,7 @@ export const toggleAvailability = async (req: Request, res: Response): Promise<v
         res.status(200).json({
             success: true,
             isAvailable: worker.is_available,
+            message: forcedOffline ? 'Availability forced to offline due to active/accepted shifts' : undefined,
             worker
         });
     } catch (error: any) {
@@ -196,8 +213,9 @@ export const updateLocation = async (req: Request, res: Response): Promise<void>
 export const getWorkerStatus = async (req: Request, res: Response): Promise<void> => {
     try {
         const { workerId } = req.params;
-        await syncWorkerAvailability(workerId);
-        const result = await pool.query('SELECT * FROM workers WHERE worker_id = $1', [workerId]);
+        const targetWorkerId = Array.isArray(workerId) ? workerId[0] : workerId;
+        await syncWorkerAvailability(targetWorkerId);
+        const result = await pool.query('SELECT * FROM workers WHERE worker_id = $1', [targetWorkerId]);
 
         if (result.rows.length === 0) {
             res.status(404).json({ success: false, error: 'Worker not found' });

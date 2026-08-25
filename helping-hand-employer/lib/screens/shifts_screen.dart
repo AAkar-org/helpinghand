@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 
 class ShiftsScreen extends StatefulWidget {
@@ -10,17 +11,107 @@ class ShiftsScreen extends StatefulWidget {
 
 class _ShiftsScreenState extends State<ShiftsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final ApiService _apiService = ApiService();
+
+  List<dynamic> _shifts = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadShifts();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadShifts() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final session = await _apiService.getSession();
+      final employerId = session['employerId'] ?? 'e1111111-1111-1111-1111-111111111111';
+
+      final response = await _apiService.getEmployerShifts(employerId);
+      if (!mounted) return;
+
+      if (response['success'] == true) {
+        setState(() {
+          _shifts = response['shifts'] ?? [];
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading shifts: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  List<dynamic> _filterShifts(String category) {
+    if (category == 'Upcoming') {
+      return _shifts.where((s) => s['status'] == 'PENDING' || s['status'] == 'ACCEPTED').toList();
+    } else if (category == 'Active') {
+      return _shifts.where((s) => s['status'] == 'ACTIVE').toList();
+    } else {
+      return _shifts.where((s) => s['status'] == 'COMPLETED' || s['status'] == 'CANCELLED').toList();
+    }
+  }
+
+  Future<void> _handleReconcileCash(Map<String, dynamic> shift) async {
+    final String shiftId = shift['shift_id'];
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await _apiService.reconcileCash(
+        shiftId: shiftId,
+        workerLat: 28.6139,
+        workerLng: 77.2090,
+        employerLat: 28.6139,
+        employerLng: 77.2090,
+        cashAmount: double.tryParse('${shift['adjusted_wage'] ?? shift['agreed_daily_wage']}'),
+      );
+
+      if (!mounted) return;
+
+      if (response['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cash payment reconciled & IVR verification triggered!')),
+        );
+        _loadShifts();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response['error'] ?? 'Reconciliation failed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error in reconciliation: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -32,6 +123,12 @@ class _ShiftsScreenState extends State<ShiftsScreen> with SingleTickerProviderSt
         elevation: 1,
         shadowColor: Colors.black.withValues(alpha: 0.05),
         title: const Text('My Shifts', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.textPrimary),
+            onPressed: _loadShifts,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
@@ -45,47 +142,45 @@ class _ShiftsScreenState extends State<ShiftsScreen> with SingleTickerProviderSt
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildShiftsList(isUpcoming: true),
-          _buildShiftsList(isActive: true),
-          _buildShiftsList(isPast: true),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildShiftsList(_filterShifts('Upcoming')),
+                _buildShiftsList(_filterShifts('Active')),
+                _buildShiftsList(_filterShifts('Past')),
+              ],
+            ),
     );
   }
 
-  Widget _buildShiftsList({bool isUpcoming = false, bool isActive = false, bool isPast = false}) {
-    // Dummy data based on the tab
-    if (isUpcoming) {
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildShiftCard('Construction - Foundation', 'Tomorrow, 8:00 AM - 4:00 PM', '4 Workers', AppColors.primary, 'Scheduled'),
-          _buildShiftCard('Warehouse Unloading', 'Fri, Nov 1, 9:00 AM - 1:00 PM', '2 Workers', AppColors.primary, 'Pending Responses'),
-        ],
-      );
-    } else if (isActive) {
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildShiftCard('Delivery Drivers', 'Today, 9:00 AM - 6:00 PM', '6/6 Workers Present', AppColors.statusGreen, 'In Progress'),
-          _buildShiftCard('Warehouse Staff', 'Today, 10:00 AM - 5:00 PM', '7/8 Workers Present', AppColors.statusOrange, 'Needs Coverage'),
-        ],
-      );
-    } else {
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildShiftCard('Event Cleanup', 'Mon, Oct 21, 6:00 PM - 10:00 PM', '5 Workers', AppColors.textSecondary, 'Completed'),
-          _buildShiftCard('General Labor', 'Sun, Oct 20, 8:00 AM - 12:00 PM', '2 Workers', AppColors.textSecondary, 'Completed'),
-        ],
+  Widget _buildShiftsList(List<dynamic> items) {
+    if (items.isEmpty) {
+      return const Center(
+        child: Text(
+          'No shifts found in this tab.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+        ),
       );
     }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final shift = items[index];
+        return _buildShiftCard(shift);
+      },
+    );
   }
 
-  Widget _buildShiftCard(String title, String time, String workers, Color statusColor, String statusText) {
+  Widget _buildShiftCard(Map<String, dynamic> shift) {
+    final String status = shift['status'] ?? 'PENDING';
+    final String wage = '₹${shift['adjusted_wage'] ?? shift['agreed_daily_wage']}';
+    Color statusColor = AppColors.primary;
+    if (status == 'ACTIVE') statusColor = AppColors.statusGreen;
+    if (status == 'COMPLETED') statusColor = AppColors.textSecondary;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
@@ -96,45 +191,68 @@ class _ShiftsScreenState extends State<ShiftsScreen> with SingleTickerProviderSt
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                Expanded(
+                  child: Text(
+                    'Shift #${shift['shift_id'].toString().substring(0, 8)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(statusText, style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.w600)),
+                  child: Text(
+                    status,
+                    style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.access_time, size: 16, color: AppColors.textSecondary),
+                const Icon(Icons.currency_rupee, size: 16, color: AppColors.textSecondary),
                 const SizedBox(width: 8),
-                Text(time, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                Text('Agreed Daily Wage: $wage', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
               ],
             ),
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.people_outline, size: 16, color: AppColors.textSecondary),
+                const Icon(Icons.calendar_today, size: 16, color: AppColors.textSecondary),
                 const SizedBox(width: 8),
-                Text(workers, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                Text('Created: ${shift['created_at']?.toString().substring(0, 10) ?? 'Today'}',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
               ],
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () {},
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.borderLight),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            if (status == 'ACTIVE')
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _handleReconcileCash(shift),
+                  icon: const Icon(Icons.check_circle, size: 18),
+                  label: const Text('Reconcile Cash & End Shift'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.statusGreen),
                 ),
-                child: Text(statusText == 'Completed' ? 'View Details & Receipt' : 'Manage Shift', style: const TextStyle(color: AppColors.primary)),
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {},
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.borderLight),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text(
+                    status == 'COMPLETED' ? 'View Receipt & Rating' : 'Shift Details',
+                    style: const TextStyle(color: AppColors.primary),
+                  ),
+                ),
               ),
-            )
           ],
         ),
       ),

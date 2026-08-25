@@ -91,3 +91,10 @@ ios/DerivedData/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# ==========================================
+# Nix / Direnv
+# ==========================================
+result
+result-*
+.direnv/

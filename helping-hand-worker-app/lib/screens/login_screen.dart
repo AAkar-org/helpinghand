@@ -517,7 +517,6 @@ class PhoneNumberFieldLight extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final String? errorText;
   const PhoneNumberFieldLight({super.key, 
-    key,
     required this.controller,
     required this.onChanged,
     this.errorText,
@@ -627,7 +626,6 @@ class OtpCodeFieldLight extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final String? errorText;
   const OtpCodeFieldLight({super.key, 
-    key,
     required this.controller,
     required this.onChanged,
     this.errorText,

@@ -13,7 +13,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  final String _workerName = 'Ramesh Kumar'; // Simulated display name
+  final String _workerName = 'Ramesh Kumar';
   String _workerCategory = 'ELECTRICIAN';
   String _workerSubCategory = 'House Wiring';
   String? _workerId;
@@ -28,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadWorkerInfo() async {
     final session = await _apiService.getSession();
+    if (!mounted) return;
     setState(() {
       _workerId = session['workerId'];
       _workerCategory = session['category'] ?? 'ELECTRICIAN';
@@ -37,6 +38,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHomeTab() {
     final theme = Theme.of(context);
+    final initials = _workerName.isNotEmpty
+        ? _workerName.split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join()
+        : 'W';
+
     return Scaffold(
       backgroundColor: AppColors.primaryDark,
       body: SafeArea(
@@ -44,7 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header matching Left Panel of the mockup
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,
@@ -53,20 +57,33 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.grid_view_rounded,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      onPressed: () {},
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome, $_workerName',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$_workerCategory • $_workerSubCategory',
+                          style: const TextStyle(
+                            color: AppColors.textDarkSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
-                    const CircleAvatar(
+                    CircleAvatar(
                       radius: 20,
                       backgroundColor: AppColors.primaryLight,
                       child: Text(
-                        'RK',
-                        style: TextStyle(
+                        initials,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
@@ -89,7 +106,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // Horizontal Filter list
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -109,8 +125,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(width: 12),
                           _buildFilterChip('Fulltime', true),
-                          _buildFilterChip('New York', false),
-                          _buildFilterChip('Product', false),
+                          _buildFilterChip(_workerCategory, false),
+                          _buildFilterChip(_workerSubCategory, false),
                         ],
                       ),
                     ),
@@ -118,7 +134,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 28),
-              // "For You" Section
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
@@ -138,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     _buildDreamJobCard(
                       employerName: 'Suresh Builders',
-                      role: 'Senior Electrician',
+                      role: 'Senior $_workerCategory',
                       wage: '₹950 / Day',
                       location: 'Kothrud, Pune',
                       ageText: '2 hours ago',
@@ -147,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     _buildDreamJobCard(
                       employerName: 'Tandem Infra',
-                      role: 'Wiring Assistant',
+                      role: '$_workerSubCategory Assistant',
                       wage: '₹600 / Day',
                       location: 'Pimple Saudagar',
                       ageText: '1 day ago',
@@ -158,7 +173,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 28),
-              // "New Added" Section
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(

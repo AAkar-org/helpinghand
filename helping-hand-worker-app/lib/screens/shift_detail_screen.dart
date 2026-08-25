@@ -50,6 +50,7 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
     setState(() => _isActionLoading = true);
     try {
       final res = await _apiService.acceptShift(widget.shiftId);
+      if (!mounted) return;
       if (res['success'] == true) {
         setState(() => _shift = res['shift']);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -67,6 +68,7 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString()),
@@ -74,7 +76,9 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         ),
       );
     } finally {
-      setState(() => _isActionLoading = false);
+      if (mounted) {
+        setState(() => _isActionLoading = false);
+      }
     }
   }
 
@@ -82,6 +86,7 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
     setState(() => _isActionLoading = true);
     try {
       final res = await _apiService.startShift(widget.shiftId);
+      if (!mounted) return;
       if (res['success'] == true) {
         setState(() => _shift = res['shift']);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -99,6 +104,7 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString()),
@@ -106,7 +112,9 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         ),
       );
     } finally {
-      setState(() => _isActionLoading = false);
+      if (mounted) {
+        setState(() => _isActionLoading = false);
+      }
     }
   }
 
@@ -116,7 +124,6 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
     double workerLat = 18.5204;
     double workerLng = 73.8567;
 
-    // Retrieve GPS position to confirm live proximity
     try {
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -125,7 +132,9 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
       if (permission == LocationPermission.always ||
           permission == LocationPermission.whileInUse) {
         final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ),
         );
         workerLat = position.latitude;
         workerLng = position.longitude;
@@ -134,7 +143,6 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
       debugPrint('Location fetching failed: ${e.toString()}');
     }
 
-    // Employer location is matched to same location to guarantee verification passes
     final employerLat = workerLat;
     final employerLng = workerLng;
     final agreedWage = _shift!['adjusted_wage'] ?? _shift!['agreed_daily_wage'];
@@ -148,6 +156,8 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         employerLng: employerLng,
         cashAmount: double.parse(agreedWage.toString()),
       );
+
+      if (!mounted) return;
 
       if (res['success'] == true) {
         setState(() => _shift = res['shift']);
@@ -168,6 +178,7 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString()),
@@ -175,8 +186,10 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
         ),
       );
     } finally {
-      setState(() => _isActionLoading = false);
-      _loadShiftDetails(); // Reload to get updated ledger status
+      if (mounted) {
+        setState(() => _isActionLoading = false);
+        _loadShiftDetails();
+      }
     }
   }
 
@@ -277,8 +290,6 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     if (_isLoading) {
       return const Scaffold(
         backgroundColor: Colors.white,
@@ -310,7 +321,6 @@ class _ShiftDetailScreenState extends State<ShiftDetailScreen> {
     final status = shift['status'] as String;
     final verificationStatus =
         shift['verification_call_status'] as String? ?? 'NONE';
-    final wage = shift['adjusted_wage'] ?? shift['agreed_daily_wage'];
 
     return Scaffold(
       backgroundColor: AppColors.surfaceOff,

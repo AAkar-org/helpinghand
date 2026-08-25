@@ -79,7 +79,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
         if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
           final position = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.high,
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+            ),
           );
           lat = position.latitude;
           lng = position.longitude;
@@ -277,42 +279,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 16),
                 
                 // Availability Pill Badge (Read-only, managed automatically)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isAvailable 
-                        ? AppColors.statusGreen.withValues(alpha: 0.15) 
-                        : Colors.orange.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
+                GestureDetector(
+                  onTap: _toggleAvailability,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
                       color: isAvailable 
-                          ? AppColors.statusGreen.withValues(alpha: 0.35) 
-                          : Colors.orange.withValues(alpha: 0.35),
-                      width: 1.2,
+                          ? AppColors.statusGreen.withValues(alpha: 0.15) 
+                          : Colors.orange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isAvailable 
+                            ? AppColors.statusGreen.withValues(alpha: 0.35) 
+                            : Colors.orange.withValues(alpha: 0.35),
+                        width: 1.2,
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: isAvailable ? AppColors.statusGreen : Colors.orange,
-                          shape: BoxShape.circle,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: isAvailable ? AppColors.statusGreen : Colors.orange,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        isAvailable ? 'AVAILABLE FOR SHIFTS' : 'OCCUPIED / BUSY',
-                        style: TextStyle(
-                          color: isAvailable ? Colors.white : Colors.orangeAccent[100],
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.8,
+                        const SizedBox(width: 8),
+                        Text(
+                          isAvailable ? 'AVAILABLE FOR SHIFTS' : 'OCCUPIED / BUSY',
+                          style: TextStyle(
+                            color: isAvailable ? Colors.white : Colors.orangeAccent[100],
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),

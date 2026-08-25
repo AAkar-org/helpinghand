@@ -1,8 +1,53 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final ApiService _apiService = ApiService();
+  String _employerName = 'Employer User';
+  String _phoneNumber = '+91 9876543210';
+  String _upiId = 'employer@upi';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final session = await _apiService.getSession();
+      if (!mounted) return;
+      setState(() {
+        _employerName = session['fullName'] ?? 'Employer User';
+        _phoneNumber = session['phoneNumber'] ?? '+91 9876543210';
+        _upiId = session['upiId'] ?? 'employer@upi';
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    await _apiService.clearSession();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Logged out successfully')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -13,82 +58,78 @@ class ProfileScreen extends StatelessWidget {
         elevation: 0,
         title: const Text('Profile & Settings', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Profile Header
-            Container(
-              color: AppColors.surfaceWhite,
-              padding: const EdgeInsets.all(24.0),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const CircleAvatar(
-                    radius: 40,
-                    backgroundColor: AppColors.primaryLight,
-                    child: Text('JR', style: TextStyle(color: AppColors.primary, fontSize: 32, fontWeight: FontWeight.bold)),
+                  Container(
+                    color: AppColors.surfaceWhite,
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 40,
+                          backgroundColor: AppColors.primaryLight,
+                          child: Text(
+                            _employerName.isNotEmpty ? _employerName[0].toUpperCase() : 'E',
+                            style: const TextStyle(color: AppColors.primary, fontSize: 32, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(_employerName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        const SizedBox(height: 4),
+                        Text(_phoneNumber, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildStatColumn('Verified', 'Status'),
+                            Container(width: 1, height: 40, color: AppColors.borderLight),
+                            _buildStatColumn('5.0 ⭐', 'Trust Score'),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  const Text('Jessica Reynolds', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  const SizedBox(height: 4),
-                  const Text('Manager, BuildCo Ltd.', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                  const SizedBox(height: 8),
+
+                  _buildSectionHeader('Account & Billing'),
+                  _buildListTile(Icons.phone, 'Phone Number', _phoneNumber),
+                  _buildListTile(Icons.account_balance_wallet, 'UPI ID', _upiId),
+                  _buildListTile(Icons.receipt_long, 'Billing History', 'View past transactions'),
+
+                  const SizedBox(height: 8),
+                  _buildSectionHeader('Preferences'),
+                  _buildListTile(Icons.notifications_none, 'Notifications', 'Enabled'),
+                  _buildListTile(Icons.lock_outline, 'Privacy & Security', ''),
+                  _buildListTile(Icons.help_outline, 'Help & Support', ''),
+
                   const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildStatColumn('142', 'Shifts Posted'),
-                      Container(width: 1, height: 40, color: AppColors.borderLight),
-                      _buildStatColumn('4.9', 'Avg Rating'),
-                    ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: OutlinedButton(
+                      onPressed: _logout,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.statusRed,
+                        side: const BorderSide(color: AppColors.statusRedLight),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('Log Out'),
+                    ),
                   ),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-
-            // Company & Billing
-            _buildSectionHeader('Company & Billing'),
-            _buildListTile(Icons.business, 'Company Details', 'BuildCo Ltd.'),
-            _buildListTile(Icons.credit_card, 'Payment Methods', 'Visa ending in 4242'),
-            _buildListTile(Icons.receipt_long, 'Billing History', 'View past invoices'),
-
-            const SizedBox(height: 8),
-            // Workers
-            _buildSectionHeader('My Workers'),
-            _buildListTile(Icons.favorite_border, 'Saved Workers', '12 workers'),
-            _buildListTile(Icons.star_border, 'My Reviews', 'Past feedback'),
-
-            const SizedBox(height: 8),
-            // Settings
-            _buildSectionHeader('Preferences'),
-            _buildListTile(Icons.notifications_none, 'Notifications', 'On'),
-            _buildListTile(Icons.lock_outline, 'Privacy & Security', ''),
-            _buildListTile(Icons.help_outline, 'Help & Support', ''),
-
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: OutlinedButton(
-                onPressed: () {},
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.statusRed,
-                  side: const BorderSide(color: AppColors.statusRedLight),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text('Log Out'),
-              ),
-            ),
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
     );
   }
 
   Widget _buildStatColumn(String value, String label) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
         const SizedBox(height: 4),
         Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
       ],

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
-import 'shifts_screen.dart';
-import 'profile_screen.dart';
+import 'create_shift_screen.dart';
 import 'map_screen.dart';
-import 'create_shift_screen.dart'; // We'll create this next
+import 'profile_screen.dart';
+import 'shifts_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,7 +15,81 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  final String _managerName = 'Jessica';
+  final ApiService _apiService = ApiService();
+
+  String _employerName = 'Employer';
+  int _activeShiftsCount = 0;
+  double _totalSpent = 0.0;
+  List<dynamic> _recentShifts = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final session = await _apiService.getSession();
+      final String employerId = session['employerId'] ?? 'e1111111-1111-1111-1111-111111111111';
+      final String name = session['fullName'] ?? 'Employer';
+
+      final response = await _apiService.getEmployerShifts(employerId);
+
+      if (!mounted) return;
+
+      if (response['success'] == true) {
+        final List<dynamic> shifts = response['shifts'] ?? [];
+        int activeCount = 0;
+        double spent = 0.0;
+
+        for (final shift in shifts) {
+          final String status = shift['status'] ?? '';
+          if (status == 'ACTIVE') {
+            activeCount++;
+          }
+          if (status == 'COMPLETED') {
+            final double actualPaid = double.tryParse('${shift['actual_cash_paid']}') ??
+                double.tryParse('${shift['adjusted_wage']}') ??
+                double.tryParse('${shift['agreed_daily_wage']}') ??
+                0.0;
+            spent += actualPaid;
+          }
+        }
+
+        setState(() {
+          _employerName = name;
+          _activeShiftsCount = activeCount;
+          _totalSpent = spent;
+          _recentShifts = shifts.take(3).toList();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading dashboard: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _openCreateShiftWithCategory(String category) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CreateShiftScreen()),
+    ).then((_) => _loadDashboardData());
+  }
 
   Widget _buildDashboardTab() {
     final theme = Theme.of(context);
@@ -27,135 +102,160 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Good Morning,',
-              style: theme.textTheme.bodyMedium,
-            ),
-            Text(
-              _managerName,
-              style: theme.textTheme.headlineLarge,
-            ),
+            Text('Good Morning,', style: theme.textTheme.bodyMedium),
+            Text(_employerName, style: theme.textTheme.headlineLarge),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: AppColors.textPrimary, size: 28),
-            onPressed: () {},
+            icon: const Icon(Icons.refresh, color: AppColors.textPrimary, size: 28),
+            onPressed: _loadDashboardData,
           ),
-          const Padding(
-            padding: EdgeInsets.only(right: 16.0, left: 8.0),
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0, left: 8.0),
             child: CircleAvatar(
               radius: 20,
               backgroundColor: AppColors.primaryLight,
               child: Text(
-                'JR',
-                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                _employerName.isNotEmpty ? _employerName[0].toUpperCase() : 'E',
+                style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
               ),
             ),
           )
         ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Stats Row
-              Row(
-                children: [
-                  Expanded(child: _buildStatCard('Active Shifts', '18', Icons.work_outline, AppColors.primary)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _buildStatCard('Total Spent', '₹1.2L', Icons.currency_rupee, AppColors.statusGreen)),
-                ],
-              ),
-              const SizedBox(height: 32),
-              
-              // Book Services / Categories
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Book Labor', style: theme.textTheme.titleLarge),
-                  TextButton(onPressed: () {}, child: const Text('See All')),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 110,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    _buildCategoryCard('Construction', Icons.construction, Colors.orange),
-                    _buildCategoryCard('Warehouse', Icons.inventory, Colors.blue),
-                    _buildCategoryCard('Delivery', Icons.local_shipping, Colors.green),
-                    _buildCategoryCard('Cleaning', Icons.cleaning_services, Colors.purple),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 32),
-
-              // Urgent Coverage Alerts Card
-              Text('Needs Attention', style: theme.textTheme.titleLarge),
-              const SizedBox(height: 16),
-              Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: AppColors.statusRedLight, width: 2),
-                ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadDashboardData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              'Active Shifts',
+                              '$_activeShiftsCount',
+                              Icons.work_outline,
+                              AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildStatCard(
+                              'Total Spent',
+                              '₹${_totalSpent.toStringAsFixed(0)}',
+                              Icons.currency_rupee,
+                              AppColors.statusGreen,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.warning_amber_rounded, color: AppColors.statusRed),
-                              const SizedBox(width: 8),
-                              Text('Coverage Gap', style: theme.textTheme.titleMedium?.copyWith(color: AppColors.statusRed)),
-                            ],
+                          Text('Book Labor', style: theme.textTheme.titleLarge),
+                          TextButton(
+                            onPressed: () => _openCreateShiftWithCategory('General'),
+                            child: const Text('See All'),
                           ),
-                          const Text('Today 2:00 PM', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                         ],
                       ),
                       const SizedBox(height: 12),
-                      const Text('Delivery Driver - 1 No Show. Need replacement urgently.', style: TextStyle(color: AppColors.textPrimary)),
-                      const SizedBox(height: 16),
                       SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.statusRed),
-                          child: const Text('Find Replacement Now'),
+                        height: 110,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            _buildCategoryCard('Construction', Icons.construction, Colors.orange),
+                            _buildCategoryCard('Warehouse', Icons.inventory, Colors.blue),
+                            _buildCategoryCard('Delivery', Icons.local_shipping, Colors.green),
+                            _buildCategoryCard('Cleaning', Icons.cleaning_services, Colors.purple),
+                          ],
                         ),
-                      )
+                      ),
+                      const SizedBox(height: 32),
+                      Text('Needs Attention', style: theme.textTheme.titleLarge),
+                      const SizedBox(height: 16),
+                      Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: const BorderSide(color: AppColors.statusRedLight, width: 2),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.warning_amber_rounded, color: AppColors.statusRed),
+                                      const SizedBox(width: 8),
+                                      Text('Coverage Gap', style: theme.textTheme.titleMedium?.copyWith(color: AppColors.statusRed)),
+                                    ],
+                                  ),
+                                  const Text('Today', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              const Text('Need additional daily labor? Tap below to find nearby available workers on map.',
+                                  style: TextStyle(color: AppColors.textPrimary)),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () => setState(() => _currentIndex = 2),
+                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.statusRed),
+                                  child: const Text('Find Workers on Map'),
+                                ),
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text('Recent Shifts', style: theme.textTheme.titleLarge),
+                      const SizedBox(height: 16),
+                      if (_recentShifts.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16.0),
+                          child: Text('No shifts created yet.', style: TextStyle(color: AppColors.textSecondary)),
+                        )
+                      else
+                        ..._recentShifts.map((shift) {
+                          final String status = shift['status'] ?? 'PENDING';
+                          final double progress = status == 'COMPLETED' ? 1.0 : (status == 'ACTIVE' ? 0.5 : 0.2);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: _buildShiftRow(
+                              'Shift #${shift['shift_id'].toString().substring(0, 8)}',
+                              'Status: $status',
+                              progress,
+                              Icons.work,
+                            ),
+                          );
+                        }),
+                      const SizedBox(height: 100),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              
-              // Recent Shifts
-              Text('Recent Shifts', style: theme.textTheme.titleLarge),
-              const SizedBox(height: 16),
-              _buildShiftRow('Warehouse Staff', '7/8 Active', 0.85, Icons.warehouse),
-              const SizedBox(height: 12),
-              _buildShiftRow('Delivery Drivers', '6/6 Active', 1.0, Icons.local_shipping),
-              
-              const SizedBox(height: 100), // Padding for FAB
-            ],
-          ),
-        ),
-      ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const CreateShiftScreen()),
-          );
+          ).then((_) => _loadDashboardData());
         },
         icon: const Icon(Icons.add),
         label: const Text('Post Shift'),
@@ -176,9 +276,9 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Icon(icon, color: color, size: 28),
             const SizedBox(height: 12),
-            Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+            Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
-            Text(value, style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w800)),
+            Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w800)),
           ],
         ),
       ),
@@ -191,7 +291,7 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.only(right: 12),
       child: Card(
         child: InkWell(
-          onTap: () {},
+          onTap: () => _openCreateShiftWithCategory(title),
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(12.0),
@@ -269,9 +369,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final List<Widget> tabs = [
       _buildDashboardTab(),
-      const ShiftsScreen(), // Schedule/Shifts
-      const MapScreen(), // Map
-      const ProfileScreen(), // Profile
+      const ShiftsScreen(),
+      const MapScreen(),
+      const ProfileScreen(),
     ];
 
     return Scaffold(

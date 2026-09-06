@@ -63,7 +63,7 @@ export const processIvrKeypress = async (
         console.log(`ℹ️ [IVR Callback] Shift ${shiftId} confirmed by ${role}. Waiting for other party.`);
     }
 
-    const updatedRes = await pool.query(
+    await pool.query(
         `UPDATE shifts 
          SET worker_call_confirmed = $1, 
              employer_call_confirmed = $2, 

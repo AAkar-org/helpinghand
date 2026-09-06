@@ -1,26 +1,59 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import pool from './db/db.js';
 import redisClient from './db/redisClient.js';
 
 import authRoutes from './modules/shared/auth.routes.js';
 import workerRoutes from './modules/worker/worker.routes.js';
 import employerRoutes from './modules/employer/employer.routes.js';
+import { runMigrations } from './db/migrate.js';
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+// Security HTTP Headers
+app.use(helmet());
 
-app.get('/health', async (req: Request, res: Response) => {
+// CORS Configuration
+app.use(cors({
+    origin: '*', // Adjust to specific domains in production
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id']
+}));
+
+app.use(express.json({ limit: '1mb' }));
+
+// Global Rate Limiter: 120 requests per minute per IP
+const globalLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Too many requests from this IP, please try again later.' }
+});
+app.use(globalLimiter);
+
+// Strict Rate Limiter for Authentication: 20 requests per 15 minutes per IP
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Too many authentication attempts, please try again in 15 minutes.' }
+});
+
+// Health check endpoint
+app.get('/health', async (_req: Request, res: Response) => {
     try {
         const dbResult = await pool.query('SELECT NOW()');
         const ping = await redisClient.ping();
         res.status(200).json({
             status: 'healthy',
             service: 'Helping Hand Core API',
+            environment: process.env.NODE_ENV || 'development',
             timestamp: dbResult.rows[0].now,
             redis: ping === 'PONG' ? 'connected' : 'error'
         });
@@ -29,19 +62,51 @@ app.get('/health', async (req: Request, res: Response) => {
     }
 });
 
-app.use('/api/auth', authRoutes);
+// Mount Routes
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/worker', workerRoutes);
 app.use('/api/employer', employerRoutes);
 
+// 404 Route Handler
 app.use((req: Request, res: Response) => {
     res.status(404).json({ success: false, error: `Route not found: ${req.method} ${req.url}` });
 });
 
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+// Global Error Handler
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     console.error('Unhandled Server Error:', err);
-    res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+    res.status(err.status || 500).json({
+        success: false,
+        error: err.message || 'Internal Server Error'
+    });
 });
 
-app.listen(port, () => {
-    console.log(`🚀 Helping Hand Core API running on http://localhost:${port}`);
+const server = app.listen(port, async () => {
+    console.log(`🚀 Helping Hand Core API running on http://localhost:${port} in [${process.env.NODE_ENV || 'development'}] mode`);
+    await runMigrations();
 });
+
+// Graceful Shutdown on SIGTERM / SIGINT
+const shutdown = async (signal: string) => {
+    console.log(`\n🛑 [Shutdown] Received ${signal}. Closing server gracefully...`);
+    server.close(async () => {
+        try {
+            await pool.end();
+            console.log('📦 PostgreSQL connection pool drained.');
+            if (redisClient.isOpen) {
+                await redisClient.disconnect();
+                console.log('🔴 Redis client disconnected.');
+            }
+            console.log('👋 Process exiting cleanly.');
+            process.exit(0);
+        } catch (err) {
+            console.error('Error during graceful shutdown:', err);
+            process.exit(1);
+        }
+    });
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+export default app;

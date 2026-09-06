@@ -498,3 +498,99 @@ export const submitEmployerRating = async (req: Request, res: Response): Promise
         res.status(500).json({ success: false, error: error.message });
     }
 };
+
+// 5. Employer Physical Cash Handshake Confirmation (with GPS Verification)
+export const confirmCashHandshake = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { shiftId } = req.params;
+        const { handshakeCode, employerLat, employerLng, cashAmount } = req.body;
+
+        const targetShiftId = Array.isArray(shiftId) ? shiftId[0] : shiftId;
+
+        const cachedHandshake = await redisClient.get(`shift_handshake:${targetShiftId}`);
+        if (!cachedHandshake) {
+            res.status(400).json({
+                success: false,
+                verified: false,
+                error: 'Handshake session expired or was not initiated by the worker. Ask worker to tap "Receive Cash".'
+            });
+            return;
+        }
+
+        const handshake = JSON.parse(cachedHandshake);
+
+        if (handshake.code !== String(handshakeCode).trim()) {
+            res.status(400).json({
+                success: false,
+                verified: false,
+                error: 'Invalid handshake code. Please enter the 4-digit code shown on the worker screen.'
+            });
+            return;
+        }
+
+        // Verify GPS proximity between Worker and Employer
+        const distanceMeters = Math.round(
+            calculateHaversineDistance(
+                handshake.workerLat,
+                handshake.workerLng,
+                Number(employerLat),
+                Number(employerLng)
+            )
+        );
+
+        const MAX_VERIFICATION_DISTANCE_METERS = 50;
+
+        if (distanceMeters > MAX_VERIFICATION_DISTANCE_METERS) {
+            res.status(400).json({
+                success: false,
+                verified: false,
+                distanceMeters,
+                error: `GPS Proximity Verification Failed. Worker and Employer are ${distanceMeters}m apart (maximum allowed: ${MAX_VERIFICATION_DISTANCE_METERS}m).`
+            });
+            return;
+        }
+
+        const shiftCheck = await pool.query('SELECT * FROM shifts WHERE shift_id = $1', [targetShiftId]);
+        if (shiftCheck.rows.length === 0) {
+            res.status(404).json({ success: false, error: 'Shift not found' });
+            return;
+        }
+
+        const existingShift = shiftCheck.rows[0];
+        const effectiveCash = cashAmount !== undefined ? Number(cashAmount) : Number(existingShift.adjusted_wage ?? existingShift.agreed_daily_wage);
+
+        // Mark shift COMPLETED
+        const shiftResult = await pool.query(
+            `UPDATE shifts 
+             SET status = 'COMPLETED', actual_cash_paid = $1, end_time = COALESCE(end_time, CURRENT_TIMESTAMP) 
+             WHERE shift_id = $2 
+             RETURNING *`,
+            [effectiveCash, targetShiftId]
+        );
+
+        const completedShift = shiftResult.rows[0];
+
+        // Worker availability update
+        await pool.query('UPDATE workers SET is_available = false WHERE worker_id = $1', [completedShift.worker_id]);
+        await redisClient.zRem(REDIS_WORKERS_GEO_KEY, completedShift.worker_id);
+
+        // Clear handshake key
+        await redisClient.del(`shift_handshake:${targetShiftId}`);
+
+        // Schedule IVR Verification Call
+        const callScheduleResult = await scheduleAutomatedVerificationCall(targetShiftId, 5, false);
+
+        res.status(200).json({
+            success: true,
+            verified: true,
+            distanceMeters,
+            message: 'Physical cash handshake confirmed! Shift closed and automated verification scheduled.',
+            shift: completedShift,
+            callScheduled: callScheduleResult
+        });
+    } catch (error: any) {
+        console.error('Error in confirmCashHandshake:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+

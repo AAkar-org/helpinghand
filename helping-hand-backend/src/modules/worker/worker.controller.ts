@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import pool from '../../db/db.js';
 import redisClient from '../../db/redisClient.js';
 import { REDIS_WORKERS_GEO_KEY } from '../../utils/constants.js';
@@ -554,3 +555,48 @@ export const submitWorkerRating = async (req: Request, res: Response): Promise<v
         res.status(500).json({ success: false, error: error.message });
     }
 };
+
+// 5. Worker Physical Cash Handshake Initiation
+export const generateCashHandshakeCode = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { shiftId } = req.params;
+        const { lat, lng } = req.body;
+
+        const targetShiftId = Array.isArray(shiftId) ? shiftId[0] : shiftId;
+
+        const shiftRes = await pool.query('SELECT * FROM shifts WHERE shift_id = $1', [targetShiftId]);
+        if (shiftRes.rows.length === 0) {
+            res.status(404).json({ success: false, error: 'Shift not found' });
+            return;
+        }
+
+        const shift = shiftRes.rows[0];
+
+        // Generate 4-digit numeric handshake code
+        const code = crypto.randomInt(1000, 9999).toString();
+
+        const handshakeData = {
+            code,
+            shiftId: targetShiftId,
+            workerId: shift.worker_id,
+            workerLat: Number(lat),
+            workerLng: Number(lng),
+            createdAt: new Date().toISOString()
+        };
+
+        // Store handshake session in Redis (10 minutes validity)
+        await redisClient.set(`shift_handshake:${targetShiftId}`, JSON.stringify(handshakeData), { EX: 600 });
+
+        res.status(200).json({
+            success: true,
+            shiftId: targetShiftId,
+            handshakeCode: code,
+            expiresInSeconds: 600,
+            message: '4-digit handshake code generated. Share this code with the employer upon physical cash payment.'
+        });
+    } catch (error: any) {
+        console.error('Error in generateCashHandshakeCode:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+

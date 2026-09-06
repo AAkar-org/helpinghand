@@ -7,26 +7,65 @@ import {
     acceptShift,
     startShift,
     reconcileCash,
+    generateCashHandshakeCode,
     handleIvrCallback,
     getShiftById,
     getWorkerShifts,
     getWorkerMyProfile,
     submitWorkerRating
 } from './worker.controller.js';
+import { authenticateToken, requireRole } from '../../middlewares/auth.middleware.js';
+import { validateBody } from '../../middlewares/validate.middleware.js';
+import {
+    registerWorkerSchema,
+    reconcileCashSchema,
+    handshakeCodeSchema,
+    submitRatingSchema
+} from '../../utils/validation.schemas.js';
 
 const router = Router();
 
-router.post('/register', registerWorker);
-router.post('/toggle-availability', toggleAvailability);
-router.post('/location', updateLocation);
-router.get('/status/:workerId', getWorkerStatus);
-router.get('/shifts/user/:userId', getWorkerShifts); // Matches original pattern /shifts/user/:userId
-router.get('/shifts/:shiftId', getShiftById);
-router.patch('/shifts/:shiftId/accept', acceptShift);
-router.patch('/shifts/:shiftId/start', startShift);
-router.post('/shifts/:shiftId/reconcile-cash', reconcileCash);
+// Public registration
+router.post('/register', validateBody(registerWorkerSchema), registerWorker);
+
+// Protected Worker Endpoints
+router.post('/toggle-availability', authenticateToken, requireRole('worker'), toggleAvailability);
+router.post('/location', authenticateToken, requireRole('worker'), updateLocation);
+router.get('/status/:workerId', authenticateToken, requireRole('worker'), getWorkerStatus);
+router.get('/profile/:workerId', authenticateToken, requireRole('worker'), getWorkerMyProfile);
+router.get('/shifts/user/:userId', authenticateToken, requireRole('worker'), getWorkerShifts);
+router.get('/shifts/:shiftId', authenticateToken, requireRole('worker'), getShiftById);
+router.patch('/shifts/:shiftId/accept', authenticateToken, requireRole('worker'), acceptShift);
+router.patch('/shifts/:shiftId/start', authenticateToken, requireRole('worker'), startShift);
+
+// Cash Handshake (Worker initiates 4-digit code)
+router.post(
+    '/shifts/:shiftId/cash-handshake-code',
+    authenticateToken,
+    requireRole('worker'),
+    validateBody(handshakeCodeSchema),
+    generateCashHandshakeCode
+);
+
+// Backward-compatible cash reconcile
+router.post(
+    '/shifts/:shiftId/reconcile-cash',
+    authenticateToken,
+    requireRole('worker'),
+    validateBody(reconcileCashSchema),
+    reconcileCash
+);
+
+// IVR Telephony Callback (Webhook)
 router.post('/shifts/:shiftId/ivr-callback', handleIvrCallback);
-router.get('/profile/:workerId', getWorkerMyProfile);
-router.post('/ratings/submit', submitWorkerRating);
+
+// Ratings
+router.post(
+    '/ratings/submit',
+    authenticateToken,
+    requireRole('worker'),
+    validateBody(submitRatingSchema),
+    submitWorkerRating
+);
 
 export default router;

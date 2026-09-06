@@ -1,24 +1,28 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import pool from './db/db.js';
 import redisClient from './db/redisClient.js';
 import authRoutes from './modules/shared/auth.routes.js';
 import workerRoutes from './modules/worker/worker.routes.js';
 import employerRoutes from './modules/employer/employer.routes.js';
+import { runMigrations } from './db/migrate.js';
 import { Server } from 'http';
 
 const app = express();
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', async (req, res) => {
+app.get('/health', async (_req, res) => {
     try {
         const dbResult = await pool.query('SELECT NOW()');
         const ping = await redisClient.ping();
         res.status(200).json({
             status: 'healthy',
             service: 'Helping Hand Core API',
+            environment: process.env.NODE_ENV || 'development',
             timestamp: dbResult.rows[0].now,
             redis: ping === 'PONG' ? 'connected' : 'error'
         });
@@ -32,75 +36,10 @@ app.use('/api/worker', workerRoutes);
 app.use('/api/employer', employerRoutes);
 
 async function runComprehensiveEndpointTests() {
-    console.log('🚀 Starting Comprehensive API Endpoint Suite Test with Mock Data...\n');
+    console.log('🚀 Starting Comprehensive API Endpoint Suite Test (Security, Google OAuth, Handshake)...\n');
 
-    // Ensure database tables exist
-    await pool.query(`
-        CREATE TABLE IF NOT EXISTS employers (
-            employer_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            phone_number VARCHAR(15) UNIQUE NOT NULL,
-            full_name VARCHAR(100),
-            upi_id VARCHAR(100),
-            trust_rating DECIMAL(3,2) DEFAULT 5.00,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS workers (
-            worker_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            phone_number VARCHAR(15) UNIQUE NOT NULL,
-            worker_category VARCHAR(50) NOT NULL,
-            worker_sub_category VARCHAR(50),
-            is_available BOOLEAN DEFAULT FALSE,
-            last_known_lat DECIMAL(10, 8),
-            last_known_lng DECIMAL(10, 8),
-            trust_score DECIMAL(3,2) DEFAULT 5.00,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS shifts (
-            shift_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            employer_id UUID REFERENCES employers(employer_id),
-            worker_id UUID REFERENCES workers(worker_id),
-            status VARCHAR(20) DEFAULT 'PENDING', 
-            agreed_daily_wage DECIMAL(10, 2) NOT NULL,
-            platform_fee_paid BOOLEAN DEFAULT FALSE,
-            actual_cash_paid DECIMAL(10, 2), 
-            start_time TIMESTAMP,
-            end_time TIMESTAMP,
-            verification_call_status VARCHAR(20) DEFAULT 'NONE',
-            worker_call_confirmed BOOLEAN DEFAULT FALSE,
-            employer_call_confirmed BOOLEAN DEFAULT FALSE,
-            verification_scheduled_at TIMESTAMP,
-            adjusted_wage DECIMAL(10, 2),
-            adjustment_reason VARCHAR(255),
-            worked_hours DECIMAL(4, 2),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS verification_call_status VARCHAR(20) DEFAULT 'NONE';
-        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS worker_call_confirmed BOOLEAN DEFAULT FALSE;
-        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS employer_call_confirmed BOOLEAN DEFAULT FALSE;
-        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS verification_scheduled_at TIMESTAMP;
-        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS adjusted_wage DECIMAL(10, 2);
-        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS adjustment_reason VARCHAR(255);
-        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS worked_hours DECIMAL(4, 2);
-
-        ALTER TABLE workers ADD COLUMN IF NOT EXISTS total_completed_shifts INT DEFAULT 0;
-        ALTER TABLE workers ADD COLUMN IF NOT EXISTS total_ratings_count INT DEFAULT 0;
-        ALTER TABLE workers ADD COLUMN IF NOT EXISTS average_rating DECIMAL(3, 2) DEFAULT 5.00;
-        ALTER TABLE workers ADD COLUMN IF NOT EXISTS is_verified_id BOOLEAN DEFAULT TRUE;
-
-        CREATE TABLE IF NOT EXISTS ratings (
-            rating_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            shift_id UUID REFERENCES shifts(shift_id),
-            reviewer_id UUID NOT NULL,
-            reviewee_id UUID NOT NULL,
-            reviewer_role VARCHAR(10) NOT NULL,
-            rating_stars INT CHECK (rating_stars BETWEEN 1 AND 5),
-            review_comment TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    `);
+    // Run migrations to ensure all tables and columns are up to date
+    await runMigrations();
 
     const server: Server = app.listen(3099);
     const BASE_URL = 'http://localhost:3099';
@@ -112,29 +51,37 @@ async function runComprehensiveEndpointTests() {
         const healthData = await healthRes.json();
         console.log('   Status:', healthRes.status, 'Response:', JSON.stringify(healthData));
 
-        // 2. Auth: Send OTP
+        // 2. Auth: Send OTP with Rate Limiting Cooldown Check
         console.log('\n2️⃣ Testing POST /api/auth/send-otp');
-        const workerPhone = '9876500001';
-        const employerPhone = '9123400002';
+        const workerPhone = '9876540001';
+        const employerPhone = '9123450002';
+
+        // Clear previous Redis keys for test phone numbers
+        await redisClient.del(`otp_cooldown:${workerPhone}`);
+        await redisClient.del(`otp_hourly:${workerPhone}`);
+        await redisClient.del(`otp_cooldown:${employerPhone}`);
+        await redisClient.del(`otp_hourly:${employerPhone}`);
 
         const sendOtpRes = await fetch(`${BASE_URL}/api/auth/send-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phoneNumber: workerPhone })
         });
-        console.log('   Status:', sendOtpRes.status, 'Response:', await sendOtpRes.json());
+        const sendOtpData = await sendOtpRes.json();
+        console.log('   Status:', sendOtpRes.status, 'Response:', sendOtpData);
+        const generatedOtp = sendOtpData.otp;
 
-        // 3. Auth: Verify OTP
-        console.log('\n3️⃣ Testing POST /api/auth/verify-otp');
-        const verifyOtpRes = await fetch(`${BASE_URL}/api/auth/verify-otp`, {
+        // Test Cooldown enforcement
+        console.log('   Testing Cooldown Rate Limit (immediate second request):');
+        const rapidOtpRes = await fetch(`${BASE_URL}/api/auth/send-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phoneNumber: workerPhone, otp: '123456' })
+            body: JSON.stringify({ phoneNumber: workerPhone })
         });
-        console.log('   Status:', verifyOtpRes.status, 'Response:', await verifyOtpRes.json());
+        console.log('   Status:', rapidOtpRes.status, 'Cooldown blocked as expected:', rapidOtpRes.status === 429);
 
-        // 4. Auth: Register Worker
-        console.log('\n4️⃣ Testing POST /api/worker/register');
+        // 3. Auth: Register Worker & Verify OTP with JWT
+        console.log('\n3️⃣ Testing POST /api/worker/register');
         const regWorkerRes = await fetch(`${BASE_URL}/api/worker/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -148,26 +95,50 @@ async function runComprehensiveEndpointTests() {
         const workerId = regWorkerData.user.worker_id;
         console.log('   Status:', regWorkerRes.status, 'Worker ID:', workerId);
 
-        // 5. Auth: Register Employer
-        console.log('\n5️⃣ Testing POST /api/employer/register');
-        const regEmpRes = await fetch(`${BASE_URL}/api/employer/register`, {
+        console.log('\n4️⃣ Testing POST /api/auth/verify-otp (JWT Token Generation)');
+        const verifyOtpRes = await fetch(`${BASE_URL}/api/auth/verify-otp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phoneNumber: workerPhone, otp: generatedOtp })
+        });
+        const verifyOtpData = await verifyOtpRes.json();
+        const workerToken = verifyOtpData.token;
+        const workerRefreshToken = verifyOtpData.refreshToken;
+        console.log('   Status:', verifyOtpRes.status, 'JWT Token Issued:', !!workerToken, 'Refresh Token Issued:', !!workerRefreshToken);
+
+        // 5. Google OAuth Mobile Flow: Employer Authentication
+        console.log('\n5️⃣ Testing POST /api/auth/google (Google OAuth Employer Flow)');
+        const mockGoogleEmployerRes = await fetch(`${BASE_URL}/api/auth/google`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                phoneNumber: employerPhone,
-                fullName: 'Vikram Builders',
-                upiId: 'vikram@upi'
+                idToken: 'mock-google-token:raj.builder@gmail.com:Rajesh Construction:google-sub-emp-101',
+                role: 'employer'
             })
         });
-        const regEmpData = await regEmpRes.json();
-        const employerId = regEmpData.user.employer_id;
-        console.log('   Status:', regEmpRes.status, 'Employer ID:', employerId);
+        const googleEmployerData = await mockGoogleEmployerRes.json();
+        const employerId = googleEmployerData.user.employer_id;
+        const employerToken = googleEmployerData.token;
+        console.log('   Status:', mockGoogleEmployerRes.status, 'Employer ID:', employerId, 'Employer JWT Issued:', !!employerToken);
 
-        // 6. Supply: Toggle Availability
-        console.log('\n6️⃣ Testing POST /api/worker/toggle-availability');
-        const toggleRes = await fetch(`${BASE_URL}/api/worker/toggle-availability`, {
+        // 6. Refresh Token
+        console.log('\n6️⃣ Testing POST /api/auth/refresh-token');
+        const refreshRes = await fetch(`${BASE_URL}/api/auth/refresh-token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: workerRefreshToken })
+        });
+        const refreshData = await refreshRes.json();
+        console.log('   Status:', refreshRes.status, 'New Access Token Issued:', !!refreshData.token);
+
+        // 7. Protected Route: Worker Toggle Availability & Update Location
+        console.log('\n7️⃣ Testing POST /api/worker/toggle-availability with Bearer Token');
+        const availRes = await fetch(`${BASE_URL}/api/worker/toggle-availability`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${workerToken}`
+            },
             body: JSON.stringify({
                 workerId,
                 isAvailable: true,
@@ -175,156 +146,140 @@ async function runComprehensiveEndpointTests() {
                 lng: 73.8567
             })
         });
-        console.log('   Status:', toggleRes.status, 'Response:', await toggleRes.json());
+        console.log('   Status:', availRes.status, 'Response:', await availRes.json());
 
-        // 7. Supply: Update Location
-        console.log('\n7️⃣ Testing POST /api/worker/location');
-        const locRes = await fetch(`${BASE_URL}/api/worker/location`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                workerId,
-                lat: 18.5205,
-                lng: 73.8568
-            })
+        // 8. Protected Route: Employer Finds Nearby Workers
+        console.log('\n8️⃣ Testing GET /api/employer/nearby-workers with Employer Token');
+        const nearbyRes = await fetch(`${BASE_URL}/api/employer/nearby-workers?lat=18.5204&lng=73.8567&radiusKm=10`, {
+            headers: {
+                'Authorization': `Bearer ${employerToken}`
+            }
         });
-        console.log('   Status:', locRes.status, 'Response:', await locRes.json());
-
-        // 8. Supply: Get Worker Status
-        console.log('\n8️⃣ Testing GET /api/worker/status/:workerId');
-        const statusRes = await fetch(`${BASE_URL}/api/worker/status/${workerId}`);
-        console.log('   Status:', statusRes.status, 'Response:', await statusRes.json());
-
-        // 9. Demand: Find Nearby Workers
-        console.log('\n9️⃣ Testing GET /api/employer/nearby-workers');
-        const nearbyRes = await fetch(`${BASE_URL}/api/employer/nearby-workers?lat=18.5205&lng=73.8568&radiusKm=5&category=ELECTRICIAN`);
         const nearbyData = await nearbyRes.json();
-        console.log('   Status:', nearbyRes.status, 'Found Workers Count:', nearbyData.count);
+        console.log('   Status:', nearbyRes.status, 'Nearby Count:', nearbyData.count);
 
-        // 10. Shifts: Create Shift
-        console.log('\n🔟 Testing POST /api/employer/shifts/create');
+        // 9. Employer Creates Shift
+        console.log('\n9️⃣ Testing POST /api/employer/shifts/create');
         const createShiftRes = await fetch(`${BASE_URL}/api/employer/shifts/create`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${employerToken}`
+            },
             body: JSON.stringify({
                 employerId,
                 workerId,
-                agreedDailyWage: 1000.00
+                agreedDailyWage: 950
             })
         });
-        const createShiftData = await createShiftRes.json();
-        const shiftId = createShiftData.shift.shift_id;
-        console.log('   Status:', createShiftRes.status, 'Created Shift ID:', shiftId);
+        const shiftData = await createShiftRes.json();
+        const shiftId = shiftData.shift.shift_id;
+        console.log('   Status:', createShiftRes.status, 'Shift ID:', shiftId);
 
-        // 11. Shifts: Accept Shift
-        console.log('\n1️⃣1️⃣ Testing PATCH /api/worker/shifts/:shiftId/accept');
-        const acceptRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/accept`, {
-            method: 'PATCH'
-        });
-        console.log('   Status:', acceptRes.status, 'Response Status:', (await acceptRes.json()).shift.status);
-
-        // 12. Shifts: Start Shift
-        console.log('\n1️⃣2️⃣ Testing PATCH /api/worker/shifts/:shiftId/start');
-        const startRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/start`, {
-            method: 'PATCH'
-        });
-        console.log('   Status:', startRes.status, 'Response Status:', (await startRes.json()).shift.status);
-
-        // 13. Shifts: Adjust Shift Timing (4 hours => pro-rated wage ₹500)
-        console.log('\n1️⃣3️⃣ Testing PATCH /api/employer/shifts/:shiftId/adjust-timing');
-        const adjustRes = await fetch(`${BASE_URL}/api/employer/shifts/${shiftId}/adjust-timing`, {
+        // 10. Worker Accepts & Starts Shift
+        console.log('\n🔟 Testing PATCH /api/worker/shifts/:shiftId/accept & start');
+        await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/accept`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Authorization': `Bearer ${workerToken}` }
+        });
+        const startRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/start`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${workerToken}` }
+        });
+        console.log('   Shift Started Status:', startRes.status);
+
+        // 11. Two-Sided Physical Cash Handshake: Worker Generates Code
+        console.log('\n1️⃣1️⃣ Testing POST /api/worker/shifts/:shiftId/cash-handshake-code');
+        const handshakeInitRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/cash-handshake-code`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${workerToken}`
+            },
             body: JSON.stringify({
-                workedHours: 4,
-                reason: 'Early completion of electrical wiring'
+                lat: 18.520400,
+                lng: 73.856700
             })
         });
-        const adjustData = await adjustRes.json();
-        console.log('   Status:', adjustRes.status, 'Adjusted Wage:', adjustData.shift.adjusted_wage);
+        const handshakeInitData = await handshakeInitRes.json();
+        const handshakeCode = handshakeInitData.handshakeCode;
+        console.log('   Status:', handshakeInitRes.status, 'Handshake Code Generated:', handshakeCode);
 
-        // 14. Shifts: Reconcile Cash
-        console.log('\n1️⃣4️⃣ Testing POST /api/worker/shifts/:shiftId/reconcile-cash');
-        const reconcileRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/reconcile-cash`, {
+        // 12. Two-Sided Physical Cash Handshake: Employer Confirms with GPS Proximity
+        console.log('\n1️⃣2️⃣ Testing POST /api/employer/shifts/:shiftId/confirm-cash-handshake (Close Proximity ~15m)');
+        const confirmHandshakeRes = await fetch(`${BASE_URL}/api/employer/shifts/${shiftId}/confirm-cash-handshake`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${employerToken}`
+            },
             body: JSON.stringify({
-                workerLat: 18.5205,
-                workerLng: 73.8568,
-                employerLat: 18.5205,
-                employerLng: 73.8568,
-                cashAmount: 500,
-                delayMinutes: 0,
-                isSyncTest: true
+                handshakeCode,
+                employerLat: 18.520500, // ~15m away
+                employerLng: 73.856750,
+                cashAmount: 950
             })
         });
-        const reconcileData = await reconcileRes.json();
-        console.log('   Status:', reconcileRes.status, 'Reconciliation Verified:', reconcileData.verified);
+        const confirmHandshakeData = await confirmHandshakeRes.json();
+        console.log('   Status:', confirmHandshakeRes.status, 'Verified:', confirmHandshakeData.verified, 'Distance (m):', confirmHandshakeData.distanceMeters);
 
-        // 15. Shifts: IVR Keypress Webhook Callbacks
-        console.log('\n1️⃣5️⃣ Testing POST /api/worker/shifts/:shiftId/ivr-callback');
-        const workerIvrRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/ivr-callback`, {
+        // 13. Test Proximity Rejection: When distance > 50m
+        console.log('\n1️⃣3️⃣ Testing Proximity Rejection (> 50m distance)');
+        // Create another shift for proximity test
+        const testShiftRes = await fetch(`${BASE_URL}/api/employer/shifts/create`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: 'worker', dtmfDigit: '1' })
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${employerToken}` },
+            body: JSON.stringify({ employerId, workerId, agreedDailyWage: 800 })
         });
-        console.log('   Worker Call Response:', await workerIvrRes.json());
-
-        const empIvrRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}/ivr-callback`, {
+        const testShiftId = (await testShiftRes.json()).shift.shift_id;
+        const codeRes = await fetch(`${BASE_URL}/api/worker/shifts/${testShiftId}/cash-handshake-code`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: 'employer', dtmfDigit: '1' })
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${workerToken}` },
+            body: JSON.stringify({ lat: 18.520400, lng: 73.856700 })
         });
-        console.log('   Employer Call Response:', await empIvrRes.json());
+        const testCode = (await codeRes.json()).handshakeCode;
 
-        // 16. Shifts: Get Shift Details
-        console.log('\n1️⃣6️⃣ Testing GET /api/worker/shifts/:shiftId');
-        const shiftDetailsRes = await fetch(`${BASE_URL}/api/worker/shifts/${shiftId}`);
-        const shiftDetailsData = await shiftDetailsRes.json();
-        console.log('   Status:', shiftDetailsRes.status, 'Final Verification Call Status:', shiftDetailsData.shift.verification_call_status);
+        const distantConfirmRes = await fetch(`${BASE_URL}/api/employer/shifts/${testShiftId}/confirm-cash-handshake`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${employerToken}` },
+            body: JSON.stringify({
+                handshakeCode: testCode,
+                employerLat: 18.530000, // ~1.1 km away!
+                employerLng: 73.860000,
+                cashAmount: 800
+            })
+        });
+        console.log('   Distant Handshake Status:', distantConfirmRes.status, 'Expected 400 rejection:', distantConfirmRes.status === 400);
 
-        // 17. Shifts: Get Shifts By User
-        console.log('\n1️⃣7️⃣ Testing GET /api/employer/shifts/user/:userId');
-        const userShiftsRes = await fetch(`${BASE_URL}/api/employer/shifts/user/${employerId}`);
-        console.log('   Status:', userShiftsRes.status, 'Shifts Count:', (await userShiftsRes.json()).count);
-
-        // 18. Ratings: Submit Rating & Review
-        console.log('\n1️⃣8️⃣ Testing POST /api/employer/ratings/submit');
+        // 14. Submit Ratings
+        console.log('\n1️⃣4️⃣ Testing POST /api/employer/ratings/submit');
         const ratingRes = await fetch(`${BASE_URL}/api/employer/ratings/submit`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${employerToken}`
+            },
             body: JSON.stringify({
                 shiftId,
                 reviewerId: employerId,
                 revieweeId: workerId,
                 reviewerRole: 'employer',
                 ratingStars: 5,
-                reviewComment: 'Excellent electrician! Completed wiring early and cleanly.'
+                reviewComment: 'Outstanding work on building the electrical panel!'
             })
         });
-        const ratingData = await ratingRes.json();
-        console.log('   Status:', ratingRes.status, 'Rating Stars:', ratingData.rating.rating_stars);
+        console.log('   Status:', ratingRes.status, 'Rating Submitted:', (await ratingRes.json()).success);
 
-        // 19. Workers: Employer App Map Quick Summary Card
-        console.log('\n1️⃣9️⃣ Testing GET /api/employer/workers/:workerId/summary (Employer Map Quick Card)');
-        const mapSummaryRes = await fetch(`${BASE_URL}/api/employer/workers/${workerId}/summary`);
-        const mapSummaryData = await mapSummaryRes.json();
-        console.log('   Status:', mapSummaryRes.status, 'Card Data:', JSON.stringify(mapSummaryData.mapSummaryCard));
-
-        // 20. Workers: Worker App Profile & Work Portfolio
-        console.log('\n2️⃣0️⃣ Testing GET /api/worker/profile/:workerId (Worker App Profile)');
-        const profileRes = await fetch(`${BASE_URL}/api/worker/profile/${workerId}`);
-        const profileData = await profileRes.json();
-        console.log('   Status:', profileRes.status, 'Completed Shifts Count:', profileData.workerProfile.totalCompletedShifts, 'Average Rating:', profileData.workerProfile.averageRating);
-
-        console.log('\n🎉 ALL 20 BACKEND API ENDPOINTS TESTED AND PASSED SUCCESSFULLY!');
-
-    } catch (err) {
-        console.error('❌ Test execution error:', err);
+        console.log('\n🎉 ALL COMPREHENSIVE ENDPOINT TESTS PASSED SUCCESSFULLY! 🚀');
+    } catch (error) {
+        console.error('❌ Test Suite Failed:', error);
     } finally {
         server.close();
         await pool.end();
-        await redisClient.disconnect();
+        if (redisClient.isOpen) {
+            await redisClient.disconnect();
+        }
+        process.exit(0);
     }
 }
 

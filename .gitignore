@@ -7,9 +7,11 @@
 *.pem
 *.key
 *.cert
+*.p12
+*.p8
 
 # ==========================================
-# Node.js / Backend (workforce-os-core-api)
+# Node.js / Backend
 # ==========================================
 node_modules/
 npm-debug.log*
@@ -21,6 +23,12 @@ dist/
 build/
 coverage/
 .nyc_output/
+*.tsbuildinfo
+.eslintcache
+
+# Local database volumes / data
+pgdata/
+redisdata/
 
 # ==========================================
 # Flutter / Dart (Employer & Worker Apps)
@@ -31,11 +39,13 @@ coverage/
 .packages
 .pub-cache/
 .pub/
-/build/
+build/
+ephemeral/
 
-# Symbol files
+# Symbol files & docs
 *.aot
 *.darttool
+doc/api/
 
 # Flutter Web
 lib/generated_plugin_registrant.dart
@@ -53,6 +63,7 @@ android/key.properties
 
 # iOS / macOS specific
 ios/Pods/
+ios/.symlinks/
 ios/Runner.xcworkspace/
 ios/Flutter/App.framework
 ios/Flutter/Flutter.framework

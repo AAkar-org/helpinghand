@@ -108,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => RegistrationScreen(phoneNumber: phone),
+                builder: (context) => RegistrationScreen(phoneNumber: phone, verifiedOtp: otp),
               ),
             );
           }
@@ -119,6 +119,10 @@ class _LoginScreenState extends State<LoginScreen> {
             phoneNumber: userData['phone_number'],
             category: userData['worker_category'],
             subCategory: userData['worker_sub_category'],
+            email: userData['email'],
+            avatarUrl: userData['avatar_url'],
+            token: res['token'],
+            refreshToken: res['refreshToken'],
           );
 
           if (mounted) {
@@ -139,6 +143,132 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _showGoogleSignInModal() async {
+    final emailController = TextEditingController(text: 'ramesh.worker@gmail.com');
+    final nameController = TextEditingController(text: 'Ramesh Kumar');
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.account_circle, color: AppColors.accentPurple, size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Google Sign-In',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textLightPrimary),
+                        ),
+                        Text(
+                          'Select or enter your Google account',
+                          style: TextStyle(fontSize: 13, color: AppColors.textLightSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'Google Email',
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: 'Full Name',
+                  prefixIcon: const Icon(Icons.person_outline),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final email = emailController.text.trim();
+                  final name = nameController.text.trim();
+                  if (email.isEmpty) return;
+
+                  setState(() {
+                    _isLoading = true;
+                    _errorMessage = null;
+                  });
+
+                  try {
+                    final idToken = 'mock-google-token:$email:$name:google-worker-${DateTime.now().millisecondsSinceEpoch}';
+                    final res = await _apiService.googleAuth(idToken: idToken, role: 'worker');
+
+                    if (res['success'] == true) {
+                      final user = res['user'];
+                      await _apiService.saveSession(
+                        workerId: user['worker_id'],
+                        phoneNumber: user['phone_number'],
+                        category: user['worker_category'],
+                        subCategory: user['worker_sub_category'],
+                        email: user['email'],
+                        avatarUrl: user['avatar_url'],
+                        token: res['token'],
+                        refreshToken: res['refreshToken'],
+                      );
+
+                      if (!mounted) return;
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const HomeScreen()),
+                      );
+                    } else {
+                      setState(() => _errorMessage = res['error'] ?? 'Google sign-in failed');
+                    }
+                  } catch (e) {
+                    setState(() => _errorMessage = 'Google auth error: $e');
+                  } finally {
+                    if (mounted) setState(() => _isLoading = false);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accentPurple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Confirm & Sign In', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // 1. Onboarding / Get Started Screen
@@ -386,10 +516,59 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ],
-                      ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            const Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'OR',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textLightSecondary.withValues(alpha: 0.7),
+                                ),
+                              ),
+                            ),
+                            const Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        OutlinedButton(
+                          onPressed: _isLoading ? null : _showGoogleSignInModal,
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Image.network(
+                                'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png',
+                                width: 22,
+                                height: 22,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, color: AppColors.accentPurple, size: 28),
+                              ),
+                              const SizedBox(width: 12),
+                              const Text(
+                                'Continue with Google',
+                                style: TextStyle(
+                                  color: AppColors.textLightPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
 
-                    const Spacer(),
+                  const Spacer(),
                     const SizedBox(height: 32),
                     // Security Disclaimer & Links
                     const SafeArea(

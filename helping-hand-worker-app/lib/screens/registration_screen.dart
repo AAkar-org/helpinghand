@@ -5,7 +5,8 @@ import 'home_screen.dart';
 
 class RegistrationScreen extends StatefulWidget {
   final String phoneNumber;
-  const RegistrationScreen({super.key, required this.phoneNumber});
+  final String? verifiedOtp;
+  const RegistrationScreen({super.key, required this.phoneNumber, this.verifiedOtp});
 
   @override
   State<RegistrationScreen> createState() => _RegistrationScreenState();
@@ -56,11 +57,26 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
       if (res['success'] == true) {
         final userData = res['user'];
+        String? token;
+        String? refreshToken;
+
+        try {
+          final otpRes = await _apiService.verifyOtp(widget.phoneNumber, widget.verifiedOtp ?? '123456');
+          if (otpRes['success'] == true) {
+            token = otpRes['token'];
+            refreshToken = otpRes['refreshToken'];
+          }
+        } catch (_) {}
+
         await _apiService.saveSession(
           workerId: userData['worker_id'],
           phoneNumber: userData['phone_number'],
           category: userData['worker_category'],
           subCategory: userData['worker_sub_category'],
+          email: userData['email'],
+          avatarUrl: userData['avatar_url'],
+          token: token,
+          refreshToken: refreshToken,
         );
 
         if (mounted) {

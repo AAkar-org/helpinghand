@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,6 +14,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final ApiService _apiService = ApiService();
   String _employerName = 'Employer User';
   String _phoneNumber = '+91 9876543210';
+  String? _email;
+  String? _avatarUrl;
   String _upiId = 'employer@upi';
   bool _isLoading = true;
 
@@ -29,6 +32,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _employerName = session['fullName'] ?? 'Employer User';
         _phoneNumber = session['phoneNumber'] ?? '+91 9876543210';
+        _email = session['email'];
+        _avatarUrl = session['avatarUrl'];
         _upiId = session['upiId'] ?? 'employer@upi';
         _isLoading = false;
       });
@@ -46,6 +51,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Logged out successfully')),
+    );
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const EmployerLoginScreen()),
+      (route) => false,
     );
   }
 
@@ -72,15 +82,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         CircleAvatar(
                           radius: 40,
                           backgroundColor: AppColors.primaryLight,
-                          child: Text(
-                            _employerName.isNotEmpty ? _employerName[0].toUpperCase() : 'E',
-                            style: const TextStyle(color: AppColors.primary, fontSize: 32, fontWeight: FontWeight.bold),
-                          ),
+                          backgroundImage: _avatarUrl != null && _avatarUrl!.isNotEmpty ? NetworkImage(_avatarUrl!) : null,
+                          child: _avatarUrl == null || _avatarUrl!.isEmpty
+                              ? Text(
+                                  _employerName.isNotEmpty ? _employerName[0].toUpperCase() : 'E',
+                                  style: const TextStyle(color: AppColors.primary, fontSize: 32, fontWeight: FontWeight.bold),
+                                )
+                              : null,
                         ),
                         const SizedBox(height: 16),
                         Text(_employerName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                         const SizedBox(height: 4),
-                        Text(_phoneNumber, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                        Text(_email != null && _email!.isNotEmpty ? '$_phoneNumber • $_email' : _phoneNumber,
+                            style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
                         const SizedBox(height: 24),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,

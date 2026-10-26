@@ -4,6 +4,7 @@ import pool from '../../db/db.js';
 import redisClient from '../../db/redisClient.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt.js';
 import { verifyGoogleIdToken, getGoogleAuthUrl, exchangeCodeForProfile } from '../../services/googleAuth.service.js';
+import { sendTwilioSms } from '../../services/twilioService.js';
 
 // 1. Send OTP (with Rate Limiting & Crypto Random Generation)
 export const sendOtp = async (req: Request, res: Response): Promise<void> => {
@@ -53,6 +54,12 @@ export const sendOtp = async (req: Request, res: Response): Promise<void> => {
         await redisClient.del(`otp_failed:${cleanedPhone}`);
 
         console.log(`📱 [SMS Gateway] OTP generated for ${cleanedPhone}: ${otp}`);
+
+        // Dispatch real SMS via Twilio SMS Gateway
+        await sendTwilioSms({
+            to: cleanedPhone,
+            body: `Your Helping Hand verification code is: ${otp}. Valid for 5 minutes. Do not share this OTP with anyone.`
+        });
 
         const responsePayload: any = {
             success: true,

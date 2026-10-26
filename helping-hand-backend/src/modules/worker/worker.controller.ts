@@ -386,18 +386,35 @@ export const reconcileCash = async (req: Request, res: Response): Promise<void> 
 export const handleIvrCallback = async (req: Request, res: Response): Promise<void> => {
     try {
         const { shiftId } = req.params;
-        const { role, dtmfDigit } = req.body;
+        const callerRole: 'employer' | 'worker' = (req.body.role || 'worker') as 'employer' | 'worker';
+        const digit = String(req.body.Digits ?? req.body.dtmfDigit ?? '').trim();
 
-        if (!role || !dtmfDigit || (role !== 'worker' && role !== 'employer')) {
+        if (!digit || (digit !== '1' && digit !== '2')) {
+            if (req.body.Digits !== undefined) {
+                res.setHeader('Content-Type', 'text/xml');
+                res.status(200).send('<Response><Say voice="Polly.Aditi" language="en-IN">Invalid keypress. Please press 1 to confirm, or 2 to dispute.</Say></Response>');
+                return;
+            }
             res.status(400).json({
                 success: false,
-                error: 'Valid role ("worker" or "employer") and dtmfDigit are required'
+                error: 'Valid dtmfDigit (1 for confirm, 2 for dispute) is required'
             });
             return;
         }
 
         const targetShiftId = Array.isArray(shiftId) ? shiftId[0] : shiftId;
-        const result = await processIvrKeypress(targetShiftId, role, String(dtmfDigit));
+        const result = await processIvrKeypress(targetShiftId, callerRole, digit);
+
+        // If called by Twilio Voice webhook, respond with compliant TwiML
+        if (req.body.Digits !== undefined || req.headers['x-twilio-signature']) {
+            res.setHeader('Content-Type', 'text/xml');
+            const replyPrompt = digit === '1'
+                ? 'Thank you. Your confirmation has been recorded successfully. Goodbye.'
+                : 'Thank you. A payment dispute has been registered for this shift. Goodbye.';
+            res.status(200).send(`<Response><Say voice="Polly.Aditi" language="en-IN">${replyPrompt}</Say></Response>`);
+            return;
+        }
+
         res.status(200).json(result);
     } catch (error: any) {
         console.error('Error in handleIvrCallback:', error);

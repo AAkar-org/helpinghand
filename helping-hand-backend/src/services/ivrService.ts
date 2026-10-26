@@ -1,4 +1,5 @@
 import pool from '../db/db.js';
+import { makeTwilioIvrCall } from './twilioService.js';
 
 export interface IvrDispatchParams {
     shiftId: string;
@@ -21,9 +22,29 @@ export const dispatchIvrCalls = async (params: IvrDispatchParams): Promise<{ suc
         [shiftId]
     );
 
+    // Dispatch real outbound calls via Twilio Voice API
+    try {
+        await Promise.allSettled([
+            makeTwilioIvrCall({
+                to: workerPhone,
+                shiftId,
+                role: 'worker',
+                agreedWage
+            }),
+            makeTwilioIvrCall({
+                to: employerPhone,
+                shiftId,
+                role: 'employer',
+                agreedWage
+            })
+        ]);
+    } catch (err: any) {
+        console.error(`❌ [IVR Dispatch Error] Failed to place Twilio calls for Shift ${shiftId}:`, err.message);
+    }
+
     return {
         success: true,
-        message: `Automated IVR call dispatched to Worker (${workerPhone}) and Employer (${employerPhone}).`
+        message: `Automated IVR call dispatched via Twilio to Worker (${workerPhone}) and Employer (${employerPhone}).`
     };
 };
 

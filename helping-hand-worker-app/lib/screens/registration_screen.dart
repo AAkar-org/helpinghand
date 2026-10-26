@@ -57,16 +57,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
       if (res['success'] == true) {
         final userData = res['user'];
-        String? token;
-        String? refreshToken;
-
-        try {
-          final otpRes = await _apiService.verifyOtp(widget.phoneNumber, widget.verifiedOtp ?? '123456');
-          if (otpRes['success'] == true) {
-            token = otpRes['token'];
-            refreshToken = otpRes['refreshToken'];
-          }
-        } catch (_) {}
+        final String? token = res['token'];
+        final String? refreshToken = res['refreshToken'];
 
         await _apiService.saveSession(
           workerId: userData['worker_id'],

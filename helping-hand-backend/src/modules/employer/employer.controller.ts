@@ -5,6 +5,7 @@ import { REDIS_WORKERS_GEO_KEY } from '../../utils/constants.js';
 import { calculateHaversineDistance } from '../../utils/haversine.js';
 import { scheduleAutomatedVerificationCall } from '../../services/callScheduler.js';
 import { processIvrKeypress } from '../../services/ivrService.js';
+import { signAccessToken, signRefreshToken } from '../../utils/jwt.js';
 import { MatchedWorker } from '../../types/index.js';
 
 // 1. Employer Registration (from authController.ts)
@@ -31,10 +32,26 @@ export const registerEmployer = async (req: Request, res: Response): Promise<voi
             [cleanedPhone, fullName.trim(), upiId ? upiId.trim() : null]
         );
 
+        const user = result.rows[0];
+        const token = signAccessToken({
+            userId: user.employer_id,
+            role: 'employer',
+            phoneNumber: cleanedPhone,
+            email: user.email
+        });
+        const refreshToken = signRefreshToken({
+            userId: user.employer_id,
+            role: 'employer',
+            phoneNumber: cleanedPhone,
+            email: user.email
+        });
+
         res.status(201).json({
             success: true,
             role: 'employer',
-            user: result.rows[0]
+            token,
+            refreshToken,
+            user
         });
     } catch (error: any) {
         console.error('Error in registerEmployer:', error);
@@ -421,7 +438,7 @@ export const getWorkerMapSummary = async (req: Request, res: Response): Promise<
                 totalCompletedShifts: Number(worker.total_completed_shifts),
                 totalRatingsCount: Number(worker.total_ratings_count),
                 isVerifiedId: worker.is_verified_id,
-                recentReviews: reviewsRes.rows.map(r => ({
+                recentReviews: reviewsRes.rows.map((r: any) => ({
                     stars: r.rating_stars,
                     comment: r.review_comment,
                     date: r.created_at

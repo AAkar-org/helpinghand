@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import 'create_shift_screen.dart';
+import 'login_screen.dart';
 import 'map_screen.dart';
 import 'profile_screen.dart';
 import 'shifts_screen.dart';
@@ -36,8 +37,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final session = await _apiService.getSession();
-      final String employerId = session['employerId'] ?? 'e1111111-1111-1111-1111-111111111111';
+      final String? employerId = session['employerId'];
       final String name = session['fullName'] ?? 'Employer';
+
+      if (employerId == null) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const EmployerLoginScreen()),
+        );
+        return;
+      }
 
       final response = await _apiService.getEmployerShifts(employerId);
 

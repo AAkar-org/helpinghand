@@ -59,17 +59,8 @@ class _EmployerRegistrationScreenState extends State<EmployerRegistrationScreen>
 
       if (res['success'] == true) {
         final user = res['user'];
-        String? token;
-        String? refreshToken;
-
-        // Fetch JWT tokens for newly registered employer
-        try {
-          final otpRes = await _apiService.verifyOtp(widget.phoneNumber, '123456');
-          if (otpRes['success'] == true) {
-            token = otpRes['token'];
-            refreshToken = otpRes['refreshToken'];
-          }
-        } catch (_) {}
+        final String? token = res['token'];
+        final String? refreshToken = res['refreshToken'];
 
         await _apiService.saveSession(
           employerId: user['employer_id'],

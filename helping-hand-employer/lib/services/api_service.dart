@@ -9,6 +9,10 @@ class ApiService {
   ApiService._internal();
 
   String get baseUrl {
+    const configuredUrl = String.fromEnvironment('API_BASE_URL');
+    if (configuredUrl.isNotEmpty) {
+      return configuredUrl;
+    }
     if (!Platform.isAndroid) {
       return 'http://localhost:3000/api';
     }

@@ -17,7 +17,7 @@ export const signAccessToken = (payload: TokenPayload): string => {
     return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 };
 
-export const signRefreshToken = (payload: { userId: string; role: 'employer' | 'worker' }): string => {
+export const signRefreshToken = (payload: TokenPayload): string => {
     return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: JWT_REFRESH_EXPIRES_IN });
 };
 

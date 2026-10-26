@@ -515,7 +515,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ],
-                        ],
                         const SizedBox(height: 24),
                         Row(
                           children: [
@@ -550,7 +549,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png',
                                 width: 22,
                                 height: 22,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, color: AppColors.accentPurple, size: 28),
+                                errorBuilder: (context, error, stackTrace) => const Icon(Icons.g_mobiledata, color: AppColors.accentPurple, size: 28),
                               ),
                               const SizedBox(width: 12),
                               const Text(

@@ -13,10 +13,10 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final ApiService _apiService = ApiService();
   String _employerName = 'Employer User';
-  String _phoneNumber = '+91 9876543210';
+  String _phoneNumber = '';
   String? _email;
   String? _avatarUrl;
-  String _upiId = 'employer@upi';
+  String? _upiId;
   bool _isLoading = true;
 
   @override
@@ -30,11 +30,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final session = await _apiService.getSession();
       if (!mounted) return;
       setState(() {
-        _employerName = session['fullName'] ?? 'Employer User';
-        _phoneNumber = session['phoneNumber'] ?? '+91 9876543210';
+        _employerName = session['fullName']?.isNotEmpty == true ? session['fullName']! : 'Employer User';
+        _phoneNumber = session['phoneNumber'] ?? '';
         _email = session['email'];
         _avatarUrl = session['avatarUrl'];
-        _upiId = session['upiId'] ?? 'employer@upi';
+        _upiId = session['upiId'];
         _isLoading = false;
       });
     } catch (e) {
@@ -111,7 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   _buildSectionHeader('Account & Billing'),
                   _buildListTile(Icons.phone, 'Phone Number', _phoneNumber),
-                  _buildListTile(Icons.account_balance_wallet, 'UPI ID', _upiId),
+                  _buildListTile(Icons.account_balance_wallet, 'UPI ID', _upiId ?? 'Not configured'),
                   _buildListTile(Icons.receipt_long, 'Billing History', 'View past transactions'),
 
                   const SizedBox(height: 8),

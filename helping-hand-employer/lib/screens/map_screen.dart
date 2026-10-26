@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import 'create_shift_screen.dart';
@@ -15,10 +16,8 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final ApiService _apiService = ApiService();
-  static const CameraPosition _initialPosition = CameraPosition(
-    target: LatLng(28.6139, 77.2090),
-    zoom: 12.0,
-  );
+  GoogleMapController? _mapController;
+  LatLng _userPosition = const LatLng(28.6139, 77.2090);
 
   Set<Marker> _markers = {};
   List<dynamic> _nearbyWorkers = [];
@@ -28,7 +27,31 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchWorkers();
+    _initLiveLocationAndFetch();
+  }
+
+  Future<void> _initLiveLocationAndFetch() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 5),
+          ),
+        );
+        _userPosition = LatLng(position.latitude, position.longitude);
+        _mapController?.animateCamera(
+          CameraUpdate.newLatLngZoom(_userPosition, 13.0),
+        );
+      }
+    } catch (_) {
+      // Graceful fallback to default initial position
+    }
+    await _fetchWorkers();
   }
 
   Future<void> _fetchWorkers() async {
@@ -38,8 +61,8 @@ class _MapScreenState extends State<MapScreen> {
 
     try {
       final response = await _apiService.findNearbyWorkers(
-        lat: 28.6139,
-        lng: 77.2090,
+        lat: _userPosition.latitude,
+        lng: _userPosition.longitude,
         radiusKm: 15,
         category: _selectedCategory == 'ALL' ? null : _selectedCategory,
       );
@@ -140,11 +163,12 @@ class _MapScreenState extends State<MapScreen> {
         children: [
           isSupportedPlatform
               ? GoogleMap(
-                  initialCameraPosition: _initialPosition,
+                  initialCameraPosition: CameraPosition(target: _userPosition, zoom: 12.0),
                   markers: _markers,
-                  myLocationEnabled: false,
-                  myLocationButtonEnabled: false,
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: true,
                   compassEnabled: true,
+                  onMapCreated: (ctrl) => _mapController = ctrl,
                 )
               : _buildFallbackListView(),
           if (_isLoading)

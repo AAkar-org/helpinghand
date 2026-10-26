@@ -6,6 +6,7 @@ import { REDIS_WORKERS_GEO_KEY } from '../../utils/constants.js';
 import { calculateHaversineDistance } from '../../utils/haversine.js';
 import { scheduleAutomatedVerificationCall } from '../../services/callScheduler.js';
 import { processIvrKeypress } from '../../services/ivrService.js';
+import { signAccessToken, signRefreshToken } from '../../utils/jwt.js';
 
 // Utility helper to synchronize worker availability based on current shifts status
 export const syncWorkerAvailability = async (workerId: string): Promise<boolean> => {
@@ -70,10 +71,26 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
             [cleanedPhone, workerCategory.trim(), workerSubCategory ? workerSubCategory.trim() : null]
         );
 
+        const user = result.rows[0];
+        const token = signAccessToken({
+            userId: user.worker_id,
+            role: 'worker',
+            phoneNumber: cleanedPhone,
+            email: user.email
+        });
+        const refreshToken = signRefreshToken({
+            userId: user.worker_id,
+            role: 'worker',
+            phoneNumber: cleanedPhone,
+            email: user.email
+        });
+
         res.status(201).json({
             success: true,
             role: 'worker',
-            user: result.rows[0]
+            token,
+            refreshToken,
+            user
         });
     } catch (error: any) {
         console.error('Error in registerWorker:', error);
@@ -481,13 +498,13 @@ export const getWorkerMyProfile = async (req: Request, res: Response): Promise<v
                 totalCompletedShifts: Number(worker.total_completed_shifts),
                 totalRatingsCount: Number(worker.total_ratings_count),
                 isVerifiedId: worker.is_verified_id,
-                reviewsList: reviewsRes.rows.map(r => ({
+                reviewsList: reviewsRes.rows.map((r: any) => ({
                     stars: r.rating_stars,
                     comment: r.review_comment,
                     reviewerName: r.reviewer_name,
                     date: r.created_at
                 })),
-                completedShiftsHistory: shiftsRes.rows.map(s => ({
+                completedShiftsHistory: shiftsRes.rows.map((s: any) => ({
                     shiftId: s.shift_id,
                     employerName: s.employer_name,
                     wage: Number(s.adjusted_wage ?? s.agreed_daily_wage),

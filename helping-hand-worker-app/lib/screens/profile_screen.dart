@@ -259,9 +259,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 12),
                 
-                // Simulated name & Real phone number from session
+                // Real name from profile/session or category fallback
                 Text(
-                  'Ramesh Kumar', 
+                  data['fullName']?.toString().isNotEmpty == true
+                      ? data['fullName'].toString()
+                      : (data['workerCategory'] != null ? '${data['workerCategory']} Professional' : 'Verified Worker'),
                   style: theme.textTheme.headlineMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,

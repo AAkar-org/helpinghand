@@ -8,8 +8,12 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  // Dynamic base URL targeting host machine from Android/iOS/Web
+  // Dynamic base URL targeting host machine or production via --dart-define=API_BASE_URL=...
   String get baseUrl {
+    const configuredUrl = String.fromEnvironment('API_BASE_URL');
+    if (configuredUrl.isNotEmpty) {
+      return configuredUrl;
+    }
     if (!Platform.isAndroid) {
       return 'http://localhost:3000/api';
     }
@@ -19,6 +23,7 @@ class ApiService {
   // Session keys
   static const String keyWorkerId = 'worker_id';
   static const String keyPhoneNumber = 'phone_number';
+  static const String keyFullName = 'full_name';
   static const String keyCategory = 'worker_category';
   static const String keySubCategory = 'worker_sub_category';
   static const String keyEmail = 'email';
@@ -31,6 +36,7 @@ class ApiService {
   Future<void> saveSession({
     required String workerId,
     String? phoneNumber,
+    String? fullName,
     String? category,
     String? subCategory,
     String? email,
@@ -41,6 +47,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(keyWorkerId, workerId);
     if (phoneNumber != null) await prefs.setString(keyPhoneNumber, phoneNumber);
+    if (fullName != null) await prefs.setString(keyFullName, fullName);
     if (category != null) await prefs.setString(keyCategory, category);
     if (subCategory != null) await prefs.setString(keySubCategory, subCategory);
     if (email != null) await prefs.setString(keyEmail, email);
@@ -55,6 +62,7 @@ class ApiService {
     return {
       'workerId': prefs.getString(keyWorkerId),
       'phoneNumber': prefs.getString(keyPhoneNumber),
+      'fullName': prefs.getString(keyFullName),
       'category': prefs.getString(keyCategory),
       'subCategory': prefs.getString(keySubCategory),
       'email': prefs.getString(keyEmail),

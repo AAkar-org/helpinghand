@@ -13,9 +13,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  final String _workerName = 'Ramesh Kumar';
-  String _workerCategory = 'ELECTRICIAN';
-  String _workerSubCategory = 'House Wiring';
+  String _workerName = 'Worker';
+  String _workerCategory = 'GENERAL_LABOR';
+  String _workerSubCategory = 'General Skills';
   String? _workerId;
 
   final _apiService = ApiService();
@@ -31,7 +31,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() {
       _workerId = session['workerId'];
-      _workerCategory = session['category'] ?? 'ELECTRICIAN';
+      _workerName = session['fullName']?.isNotEmpty == true ? session['fullName']! : 'Worker';
+      _workerCategory = session['category'] ?? 'GENERAL_LABOR';
       _workerSubCategory = session['subCategory'] ?? 'General Skills';
     });
   }

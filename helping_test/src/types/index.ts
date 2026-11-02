@@ -41,6 +41,7 @@ export type ConversationStep =
   | 'AWAITING_WORKER_COUNT'
   | 'AWAITING_LOCATION'
   | 'AWAITING_WAGE'
+  | 'AWAITING_WAGE_CONFIRMATION'
   | 'AWAITING_TIMING'
   | 'AWAITING_CONFIRMATION'
   | 'DISPATCHING'
@@ -63,6 +64,9 @@ export interface JobRequest {
   status: 'COLLECTING' | 'MATCHING' | 'CALLING' | 'CONFIRMED' | 'UNFULFILLED' | 'CANCELLED';
   matchedCandidates: CandidateMatch[];
   assignedWorker?: WorkerProfile;
+  assignedWorkers?: WorkerProfile[]; // Full crew for multi-worker bookings
+  helperCategory?: WorkerCategory;
+  helpersNeeded?: number;
   createdAt: string;
   updatedAt: string;
 }

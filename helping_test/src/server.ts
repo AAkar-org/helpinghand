@@ -30,10 +30,12 @@ app.post('/webhook', webhookController.handleMetaWebhook);
 // 2. Twilio IVR Telephony Callback
 app.post('/api/calls/callback', callController.handleCallCallback);
 
-// 3. Operational Monitoring Endpoints
+// 3. Operational Monitoring & Wage Intelligence Endpoints
 app.get('/api/workers', apiController.getWorkers);
 app.get('/api/jobs', apiController.getJobs);
 app.get('/api/sessions', apiController.getSessions);
+app.get('/api/wages', apiController.getWageBenchmarks);
+app.post('/api/jobs/:jobId/morning-check', apiController.triggerMorningConfirmation);
 
 // Start Server
 if (process.env.NODE_ENV !== 'test') {

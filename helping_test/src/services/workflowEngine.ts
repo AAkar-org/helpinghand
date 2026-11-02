@@ -4,6 +4,8 @@ import { matchingService } from './matchingService.js';
 import { ivrCallService } from './ivrCallService.js';
 import { whatsappService } from './whatsappService.js';
 import { resolveLocationCoordinates } from '../data/locations.js';
+import { nlpParser } from './nlpParser.js';
+import { wageBenchmarkService } from './wageBenchmarkService.js';
 
 export class WorkflowEngine {
   /**
@@ -23,11 +25,109 @@ export class WorkflowEngine {
       sessionService.resetSession(senderPhone);
       const reply =
         `🔄 *Session Reset Ho Gaya Hai.*\n\n` +
-        `Nayi worker inquiry ke liye *Hi* ya *Namaste* likh kar bhejein.`;
+        `Nayi worker inquiry ke liye *Hi* ya apna kaam likh kar bhejein (Jaise: *"Kal subah Sector 62 me 2 Mistri chahiye 900 dihadi"*).`;
       await whatsappService.sendTextMessage(senderPhone, reply);
       return { replyText: reply };
     }
 
+    // -------------------------------------------------------------
+    // REALISTIC FEATURE #1: SMART "ONE-SHOT" NATURAL LANGUAGE PARSER
+    // If user sends a rich instruction upfront, parse all fields at once!
+    // -------------------------------------------------------------
+    if (session.step === 'IDLE' || session.step === 'AWAITING_WORK_DESCRIPTION') {
+      const parsed = nlpParser.parseOneShotMessage(cleanedText);
+
+      // If user provided a comprehensive request in a single message
+      if (parsed.isComprehensive && parsed.category && parsed.workersNeeded && parsed.locationName && parsed.offeredDailyWage && parsed.shiftDate) {
+        console.log(`[Workflow NLP] One-shot comprehensive booking detected from ${senderPhone}!`);
+
+        const coords = await resolveLocationCoordinates(parsed.locationName);
+        if (coords) {
+          sessionService.updateJobDraft(senderPhone, {
+            contractorPhone: session.phone,
+            workDescription: cleanedText,
+            category: parsed.category,
+            workersNeeded: parsed.workersNeeded,
+            locationName: coords.name,
+            coordinates: coords,
+            offeredDailyWage: parsed.offeredDailyWage,
+            shiftDate: parsed.shiftDate,
+            createdAt: new Date().toISOString()
+          });
+
+          return await this.renderBookingSummaryAndAwaitingConfirm(senderPhone);
+        }
+      }
+
+      // If partially comprehensive (e.g. specified category and count, or category and location)
+      if (parsed.category) {
+        sessionService.updateJobDraft(senderPhone, {
+          contractorPhone: session.phone,
+          workDescription: cleanedText,
+          category: parsed.category,
+          createdAt: new Date().toISOString()
+        });
+
+        if (parsed.workersNeeded) {
+          sessionService.updateJobDraft(senderPhone, { workersNeeded: parsed.workersNeeded });
+        } else {
+          sessionService.updateSessionStep(senderPhone, 'AWAITING_WORKER_COUNT');
+          const reply =
+            `✅ Category: *${parsed.category}* note kar li gayi hai.\n\n` +
+            `Aapko kitne worker chahiye? (e.g. *1*, *2*, *5*...)`;
+          await whatsappService.sendTextMessage(senderPhone, reply);
+          return { replyText: reply };
+        }
+
+        if (parsed.locationName) {
+          const coords = await resolveLocationCoordinates(parsed.locationName);
+          if (coords) {
+            sessionService.updateJobDraft(senderPhone, {
+              locationName: coords.name,
+              coordinates: coords
+            });
+
+            if (parsed.offeredDailyWage) {
+              sessionService.updateJobDraft(senderPhone, { offeredDailyWage: parsed.offeredDailyWage });
+              sessionService.updateSessionStep(senderPhone, 'AWAITING_TIMING');
+
+              const reply =
+                `✅ Category: *${parsed.category}* (${parsed.workersNeeded || 1} worker)\n` +
+                `📍 Site: *${coords.name}*\n` +
+                `💰 Dihadi: *₹${parsed.offeredDailyWage}/din*\n\n` +
+                `📅 Kaam kis din aur samay par shuru hoga?\n` +
+                `_Jaise: Kal subah 08:30 AM ya Aaj dopehar 2:00 PM_`;
+              await whatsappService.sendTextMessage(senderPhone, reply);
+              return { replyText: reply };
+            }
+
+            // Wage is missing
+            sessionService.updateSessionStep(senderPhone, 'AWAITING_WAGE');
+            const benchmark = wageBenchmarkService.getBenchmark(parsed.category);
+            const reply =
+              `✅ Category: *${parsed.category}* (${parsed.workersNeeded || 1} worker)\n` +
+              `📍 Site: *${coords.name}* note ho gaya hai.\n\n` +
+              `💰 Aap prati worker kitni dihadi (₹/day) offer kar rahe hain?\n` +
+              `_Standard Market Rate: ₹${benchmark.standardMarketMin} - ₹${benchmark.standardMarketMax}_`;
+            await whatsappService.sendTextMessage(senderPhone, reply);
+            return { replyText: reply };
+          }
+        }
+
+        // Location is missing
+        sessionService.updateSessionStep(senderPhone, 'AWAITING_LOCATION');
+        const reply =
+          `✅ Category: *${parsed.category}* (${parsed.workersNeeded || 1} worker) note ho gaya hai.\n\n` +
+          `📍 Work site ka area / address kya hai?\n` +
+          `_Area & city name likhein (Jaise: Sector 62 Noida) ya WhatsApp se direct Location Pin (📍) share karein._`;
+        await whatsappService.sendTextMessage(senderPhone, reply);
+        return { replyText: reply };
+      }
+    }
+
+    // -------------------------------------------------------------
+    // CONVERSATIONAL STATE MACHINE
+    // -------------------------------------------------------------
     switch (session.step) {
       case 'IDLE':
       case 'CONFIRMED': {
@@ -41,7 +141,7 @@ export class WorkflowEngine {
           `🙏 *Namaste! Helping Hand (हेल्पिंग हैंड) me aapka swagat hai.*\n\n` +
           `Yahan aapko construction & daily-wage work ke liye verified workers (Rajmistri, Mazdoor, Badhai, Plumber, Painter aadi) milte hain.\n\n` +
           `Aapko kis kaam ke liye worker chahiye?\n` +
-          `_Jaise: Deewar chunai, Plaster work, Malba safai, Door fixing, ya Sanitary piping..._`;
+          `_Jaise: "Kal subah Sector 62 Noida me 2 Rajmistri chahiye 900 dihadi"_ ya bas apna trade batayein.`;
 
         await whatsappService.sendTextMessage(senderPhone, reply);
         return { replyText: reply };
@@ -152,9 +252,13 @@ export class WorkflowEngine {
         });
         sessionService.updateSessionStep(senderPhone, 'AWAITING_WAGE');
 
+        const cat = (session.jobDraft.category as WorkerCategory) || 'MASON';
+        const benchmark = wageBenchmarkService.getBenchmark(cat);
+
         const reply =
           `💰 Aap prati worker kitni dihadi (Daily Wage in ₹) offer kar rahe hain?\n\n` +
-          `Jaise reply karein: *650* ya *900*`;
+          `_Sector benchmark for ${benchmark.categoryHindi}: ₹${benchmark.standardMarketMin} - ₹${benchmark.standardMarketMax}_\n` +
+          `Jaise reply karein: *${benchmark.standardMarketMin}* ya *${benchmark.standardMarketMax}*`;
         await whatsappService.sendTextMessage(senderPhone, reply);
         return { replyText: reply };
       }
@@ -168,6 +272,22 @@ export class WorkflowEngine {
         }
 
         const wage = parseInt(wageMatch[0], 10);
+        const cat = (session.jobDraft.category as WorkerCategory) || 'MASON';
+        const evaluation = wageBenchmarkService.evaluateWage(cat, wage);
+
+        // REALISTIC FEATURE #2: WAGE LOWBALL WARNING & CORRECTION
+        if (evaluation.isSeverelyUnderpaid) {
+          sessionService.updateJobDraft(senderPhone, { offeredDailyWage: wage });
+          sessionService.updateSessionStep(senderPhone, 'AWAITING_WAGE_CONFIRMATION');
+
+          const reply =
+            `${evaluation.advisoryMessage}\n\n` +
+            `👉 Reply *1* to upgrade wage to *₹${evaluation.recommendedWage}*\n` +
+            `👉 Reply *2* to continue with your offer *₹${wage}*`;
+          await whatsappService.sendTextMessage(senderPhone, reply);
+          return { replyText: reply };
+        }
+
         sessionService.updateJobDraft(senderPhone, { offeredDailyWage: wage });
         sessionService.updateSessionStep(senderPhone, 'AWAITING_TIMING');
 
@@ -178,68 +298,31 @@ export class WorkflowEngine {
         return { replyText: reply };
       }
 
+      case 'AWAITING_WAGE_CONFIRMATION': {
+        const isUpgrade = ['1', 'upgrade', 'yes', 'haan', 'ha'].includes(lowerText);
+        const cat = (session.jobDraft.category as WorkerCategory) || 'MASON';
+        const benchmark = wageBenchmarkService.getBenchmark(cat);
+
+        if (isUpgrade) {
+          sessionService.updateJobDraft(senderPhone, { offeredDailyWage: benchmark.standardMarketMin });
+        }
+        // If 2, keeps the contractor's offered wage
+
+        sessionService.updateSessionStep(senderPhone, 'AWAITING_TIMING');
+        const currentWage = session.jobDraft.offeredDailyWage;
+
+        const reply =
+          `👍 Dihadi *₹${currentWage}/din* confirm kar li gayi hai.\n\n` +
+          `📅 Kaam kis din aur samay par shuru hoga?\n` +
+          `_Jaise: Kal subah 08:30 AM, Aaj dopehar 2:00 PM_`;
+        await whatsappService.sendTextMessage(senderPhone, reply);
+        return { replyText: reply };
+      }
+
       case 'AWAITING_TIMING': {
         const shiftTiming = cleanedText;
         sessionService.updateJobDraft(senderPhone, { shiftDate: shiftTiming });
-
-        const draft = session.jobDraft;
-        let candidateMatches;
-        try {
-          candidateMatches = matchingService.rankWorkersForJob(draft);
-        } catch (err: any) {
-          console.error('[Workflow] Error during matching:', err);
-          const reply = `⚠️ Error finding workers: ${err?.message || 'Invalid parameters'}. Kripya *reset* likhein.`;
-          await whatsappService.sendTextMessage(senderPhone, reply);
-          return { replyText: reply };
-        }
-
-        if (candidateMatches.length === 0) {
-          const reply =
-            `⚠️ Maaf kijiye, is category ke liye is samay koi worker uplabdh nahi hai. Kripya doosri category ke liye *reset* likhein.`;
-          await whatsappService.sendTextMessage(senderPhone, reply);
-          return { replyText: reply };
-        }
-
-        const topCandidate = candidateMatches[0];
-        const bookingId = `HH-${Date.now().toString().slice(-4)}`;
-
-        const fullJob: JobRequest = {
-          id: bookingId,
-          contractorPhone: senderPhone,
-          workDescription: draft.workDescription || 'Construction Work',
-          category: draft.category as WorkerCategory,
-          workersNeeded: draft.workersNeeded || 1,
-          locationName: draft.locationName || 'Specified Site',
-          coordinates: draft.coordinates!,
-          offeredDailyWage: draft.offeredDailyWage || 0,
-          shiftDate: shiftTiming,
-          status: 'COLLECTING',
-          matchedCandidates: candidateMatches,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-
-        sessionService.saveJob(fullJob);
-        sessionService.updateJobDraft(senderPhone, { id: bookingId });
-        sessionService.updateSessionStep(senderPhone, 'AWAITING_CONFIRMATION');
-
-        const reply =
-          `📋 *Booking Summary - Helping Hand*\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `🆔 *Booking ID:* #${bookingId}\n` +
-          `👷 *Category:* ${fullJob.category}\n` +
-          `👥 *Workers Needed:* ${fullJob.workersNeeded}\n` +
-          `📍 *Work Site:* ${fullJob.locationName}\n` +
-          `💰 *Daily Wage:* ₹${fullJob.offeredDailyWage}/worker/day\n` +
-          `📅 *Reporting Time:* ${fullJob.shiftDate}\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `🎯 *Top Priority Match:* ${topCandidate.worker.name} (${topCandidate.worker.rating}★, ~${topCandidate.distanceKm} km door)\n\n` +
-          `Kya aap booking confirm karna chahte hain?\n` +
-          `👉 Reply *1* ya *YES* to dispatch automated call\n` +
-          `👉 Reply *0* ya *CANCEL* to cancel`;
-
-        await whatsappService.sendTextMessage(senderPhone, reply);
-        return { replyText: reply, job: fullJob };
+        return await this.renderBookingSummaryAndAwaitingConfirm(senderPhone);
       }
 
       case 'AWAITING_CONFIRMATION': {
@@ -255,17 +338,20 @@ export class WorkflowEngine {
           sessionService.saveJob(job);
 
           const topMatch = job.matchedCandidates[0];
+          const needed = job.workersNeeded || 1;
+
           const progressReply =
             `🚀 *Booking Confirmed! (ID: #${job.id})*\n\n` +
             `Humara automated telephony system top-rated worker *${topMatch.worker.name}* (${topMatch.worker.rating}★, ${topMatch.distanceKm} km door) ko automated call mila raha hai... 📞\n\n` +
+            (needed > 1 ? `👥 Kul ${needed} workers sequentially call kiye jayenge.\n` : '') +
             `Worker ke accept karte hi aapko unka direct mobile number yahan bhej diya jayega. Kripya 30 seconds wait karein.`;
 
           await whatsappService.sendTextMessage(senderPhone, progressReply);
 
           try {
             await ivrCallService.dispatchWorkerCall(job, 0);
-          } catch (err) {
-            console.error('[Workflow] Telephony dispatch error:', err);
+          } catch (err: any) {
+            console.error('[Workflow] Telephony dispatch error:', err.message);
           }
 
           return { replyText: progressReply, job };
@@ -284,7 +370,7 @@ export class WorkflowEngine {
 
       case 'DISPATCHING': {
         const reply =
-          `⏳ Worker call in progress hai. Response milte hi aapko instant update milega.\n` +
+          `⏳ Worker calls in progress hain. Responses milte hi aapko instant update milega.\n` +
           `Nayi inquiry ke liye *reset* likhein.`;
         await whatsappService.sendTextMessage(senderPhone, reply);
         return { replyText: reply };
@@ -297,6 +383,82 @@ export class WorkflowEngine {
         return { replyText: reply };
       }
     }
+  }
+
+  /**
+   * Helper that ranks candidates and delivers the final Booking Summary Card
+   */
+  private async renderBookingSummaryAndAwaitingConfirm(
+    senderPhone: string
+  ): Promise<{ replyText: string; job?: JobRequest }> {
+    const session = sessionService.getOrCreateSession(senderPhone);
+    const draft = session.jobDraft;
+
+    let candidateMatches;
+    try {
+      candidateMatches = matchingService.rankWorkersForJob(draft);
+    } catch (err: any) {
+      console.error('[Workflow] Error during matching:', err);
+      const reply = `⚠️ Error finding workers: ${err?.message || 'Invalid parameters'}. Kripya *reset* likhein.`;
+      await whatsappService.sendTextMessage(senderPhone, reply);
+      return { replyText: reply };
+    }
+
+    if (candidateMatches.length === 0) {
+      const reply =
+        `⚠️ Maaf kijiye, is category ke liye is samay koi worker uplabdh nahi hai. Kripya doosri category ke liye *reset* likhein.`;
+      await whatsappService.sendTextMessage(senderPhone, reply);
+      return { replyText: reply };
+    }
+
+    const topCandidate = candidateMatches[0];
+    const bookingId = `HH-${Date.now().toString().slice(-4)}`;
+    const workersNeeded = draft.workersNeeded || 1;
+    const totalDailyPayout = (draft.offeredDailyWage || 0) * workersNeeded;
+
+    const fullJob: JobRequest = {
+      id: bookingId,
+      contractorPhone: senderPhone,
+      workDescription: draft.workDescription || 'Construction Work',
+      category: draft.category as WorkerCategory,
+      workersNeeded: workersNeeded,
+      locationName: draft.locationName || 'Specified Site',
+      coordinates: draft.coordinates!,
+      offeredDailyWage: draft.offeredDailyWage || 0,
+      shiftDate: draft.shiftDate || 'Tomorrow 8:30 AM',
+      status: 'COLLECTING',
+      matchedCandidates: candidateMatches,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    sessionService.saveJob(fullJob);
+    sessionService.updateJobDraft(senderPhone, { id: bookingId });
+    sessionService.updateSessionStep(senderPhone, 'AWAITING_CONFIRMATION');
+
+    const multiWorkerNote =
+      workersNeeded > 1
+        ? `\n👥 *Full Crew Fulfillment:* Top ${workersNeeded} workers will be called sequentially.`
+        : '';
+
+    const reply =
+      `📋 *Booking Summary - Helping Hand*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `🆔 *Booking ID:* #${bookingId}\n` +
+      `👷 *Category:* ${fullJob.category}\n` +
+      `👥 *Workers Needed:* ${fullJob.workersNeeded}\n` +
+      `📍 *Work Site:* ${fullJob.locationName}\n` +
+      `💰 *Daily Wage:* ₹${fullJob.offeredDailyWage}/worker/day (Kul ₹${totalDailyPayout}/din)\n` +
+      `📅 *Reporting Time:* ${fullJob.shiftDate}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `🎯 *Top Priority Match:* ${topCandidate.worker.name} (${topCandidate.worker.rating}★, ~${topCandidate.distanceKm} km door)` +
+      multiWorkerNote +
+      `\n\nKya aap booking confirm karna chahte hain?\n` +
+      `👉 Reply *1* ya *YES* to dispatch automated call\n` +
+      `👉 Reply *0* ya *CANCEL* to cancel`;
+
+    await whatsappService.sendTextMessage(senderPhone, reply);
+    return { replyText: reply, job: fullJob };
   }
 }
 

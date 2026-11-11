@@ -90,25 +90,42 @@ class DatabaseManager {
   }
 
   /**
-   * Automatically ensures high-performance composite indexes are present
-   * to handle large concurrent contractor searches and shift queries.
+   * Automatically ensures high-performance composite and partial indexes are present
+   * to handle large concurrent contractor searches, shift histories, and telephony polling.
    */
   public async optimizeProductionIndexes(): Promise<void> {
     if (!this.isReady || !this.pool) return;
     try {
       const indexQueries = [
+        // 1. Worker category + availability (both exact and case-insensitive expression index)
         `CREATE INDEX IF NOT EXISTS idx_workers_cat_avail ON workers(worker_category, is_available);`,
+        `CREATE INDEX IF NOT EXISTS idx_workers_upper_category_avail ON workers(UPPER(worker_category), is_available);`,
+        
+        // 2. Spatial coordinates for proximity matching
         `CREATE INDEX IF NOT EXISTS idx_workers_coords ON workers(last_known_lat, last_known_lng);`,
+        
+        // 3. Shift status and history compound indexes (eliminates in-memory sorting)
         `CREATE INDEX IF NOT EXISTS idx_shifts_emp_status ON shifts(employer_id, status);`,
         `CREATE INDEX IF NOT EXISTS idx_shifts_worker_status ON shifts(worker_id, status);`,
+        `CREATE INDEX IF NOT EXISTS idx_shifts_emp_created ON shifts(employer_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_shifts_worker_created ON shifts(worker_id, created_at DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_shifts_created ON shifts(created_at DESC);`,
+        
+        // 4. Hot Partial Indexes (microscopic footprint, zero-overhead $O(1)$ lookups)
+        // Instant check if candidate worker is currently busy on an active shift
+        `CREATE INDEX IF NOT EXISTS idx_shifts_active_workers ON shifts(worker_id) WHERE status IN ('ACCEPTED', 'ACTIVE');`,
+        // Instant queue lookup for background IVR post-shift verification calls
+        `CREATE INDEX IF NOT EXISTS idx_shifts_verification_queue ON shifts(verification_scheduled_at) WHERE status = 'COMPLETED' AND verification_call_status = 'SCHEDULED';`,
+        
+        // 5. Ratings & Employer fast lookups
+        `CREATE INDEX IF NOT EXISTS idx_ratings_reviewee_created ON ratings(reviewee_id, created_at DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_employers_phone ON employers(phone_number);`
       ];
 
       for (const query of indexQueries) {
         await this.pool.query(query);
       }
-      console.log(`[Database] Production composite indexes verified and optimized.`);
+      console.log(`[Database] Production composite and partial indexes verified and optimized.`);
     } catch (err: any) {
       console.warn(`[Database Index Warning] Index optimization deferred: ${err.message}`);
     }

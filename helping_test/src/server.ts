@@ -5,6 +5,8 @@ import 'dotenv/config';
 import { webhookController } from './controllers/webhookController.js';
 import { callController } from './controllers/callController.js';
 import { apiController } from './controllers/apiController.js';
+import { dbClient } from './db/dbClient.js';
+import { redisClient } from './db/redisClient.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -19,6 +21,10 @@ app.get('/health', (_req, res) => {
   res.status(200).json({
     status: 'HEALTHY',
     service: 'helping-hand-meta-whatsapp-engine',
+    infrastructure: {
+      postgres: dbClient.isReady ? 'CONNECTED (port 5433, db: helping_hand)' : 'OFFLINE_FALLBACK',
+      redis: redisClient.isReady ? 'CONNECTED (port 6379)' : 'OFFLINE_FALLBACK'
+    },
     timestamp: new Date().toISOString()
   });
 });
@@ -49,6 +55,10 @@ if (process.env.NODE_ENV !== 'test') {
   [Production Webhooks Ready]:
   - Meta Webhook (GET / POST):   http://localhost:${PORT}/webhook
   - Twilio Voice Callback (POST): http://localhost:${PORT}/api/calls/callback
+
+  [Database & Cache (Docker)]:
+  - PostgreSQL (port 5433):      ${dbClient.isReady ? 'ONLINE' : 'CONNECTING...'}
+  - Redis (port 6379):           ${redisClient.isReady ? 'ONLINE' : 'CONNECTING...'}
   
   [Monitoring Endpoints]:
   - Health check:                http://localhost:${PORT}/health

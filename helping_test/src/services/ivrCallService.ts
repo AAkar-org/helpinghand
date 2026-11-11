@@ -2,6 +2,7 @@ import { JobRequest, WorkerProfile } from '../types/index.js';
 import { sessionService } from './sessionService.js';
 import { matchingService } from './matchingService.js';
 import { whatsappService } from './whatsappService.js';
+import { dbClient } from '../db/dbClient.js';
 
 export class IvrCallService {
   /**
@@ -285,6 +286,20 @@ export class IvrCallService {
 
     await whatsappService.sendTextMessage(job.contractorPhone, confirmMessage);
     console.log(`[IVR] Job #${job.id} completely confirmed with ${workers.length} worker(s).`);
+
+    // Persist confirmed shifts to PostgreSQL database
+    if (dbClient.isReady) {
+      for (const worker of workers) {
+        dbClient
+          .recordConfirmedShift({
+            employerPhone: job.contractorPhone,
+            workerPhone: worker.phone,
+            agreedDailyWage: job.offeredDailyWage,
+            shiftDate: job.shiftDate
+          })
+          .catch((err) => console.warn(`[Database] Shift persistence error: ${err.message}`));
+      }
+    }
   }
 
   /**

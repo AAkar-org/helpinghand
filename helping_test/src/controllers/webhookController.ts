@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { workflowEngine } from '../services/workflowEngine.js';
+import { redisClient } from '../db/redisClient.js';
+import { dbClient } from '../db/dbClient.js';
 
 export class WebhookController {
   private processedMessageIds: Map<string, number> = new Map();
@@ -24,6 +26,10 @@ export class WebhookController {
     }
 
     this.processedMessageIds.set(messageId, now);
+
+    // Asynchronously record into distributed Redis cache
+    redisClient.setNx(`whatsapp:wamid:${messageId}`, 120).catch(() => {});
+
     return false;
   }
 
@@ -97,6 +103,8 @@ export class WebhookController {
 
           if (messageText || incomingLoc) {
             console.log(`[Meta Webhook] Inbound from ${senderPhone}: "${messageText}"`);
+            // Ensure contractor identity is recorded in PostgreSQL
+            dbClient.getOrCreateEmployer(senderPhone).catch(() => {});
             await workflowEngine.handleIncomingMessage(senderPhone, messageText, incomingLoc);
           }
         }

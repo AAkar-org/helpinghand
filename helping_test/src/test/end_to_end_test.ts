@@ -3,8 +3,7 @@ import { workflowEngine } from '../services/workflowEngine.js';
 import { sessionService } from '../services/sessionService.js';
 import { matchingService } from '../services/matchingService.js';
 import { ivrCallService } from '../services/ivrCallService.js';
-import { nlpParser } from '../services/nlpParser.js';
-import { wageBenchmarkService } from '../services/wageBenchmarkService.js';
+import { webhookController } from '../controllers/webhookController.js';
 
 // Setup environment variables for test execution
 process.env.WHATSAPP_PHONE_NUMBER_ID = 'test_meta_phone_id';
@@ -77,7 +76,7 @@ global.fetch = async (input: string | URL | Request, init?: RequestInit): Promis
 
 async function runEndToEndTests() {
   console.log('\n===============================================================');
-  console.log('🧪 RUNNING PRODUCTION META WHATSAPP & TELEPHONY TEST SUITE');
+  console.log('RUNNING PRODUCTION META WHATSAPP & TELEPHONY TEST SUITE');
   console.log('===============================================================\n');
 
   const contractorPhone = '+919876543210';
@@ -114,7 +113,7 @@ async function runEndToEndTests() {
   console.log('  ✔ Worker count recorded as 1.');
 
   // Test 5: Dynamic GPS Location Pin
-  console.log('\n▶ Test 5: Contractor shares native WhatsApp GPS Location Pin 📍...');
+  console.log('\n▶ Test 5: Contractor shares native WhatsApp GPS Location Pin...');
   await workflowEngine.handleIncomingMessage(contractorPhone, 'Shared Location', {
     lat: 28.6280,
     lng: 77.3649,
@@ -131,7 +130,7 @@ async function runEndToEndTests() {
   const session5 = sessionService.getSession(contractorPhone);
   assert.strictEqual(session5?.step, 'AWAITING_TIMING');
   assert.strictEqual(session5?.jobDraft.offeredDailyWage, 850);
-  console.log('  ✔ Daily wage recorded as ₹850.');
+  console.log('  ✔ Daily wage recorded as Rs. 850.');
 
   // Test 7: Contractor specifies shift timing
   console.log('\n▶ Test 7: Contractor specifies shift timing ("Tomorrow morning 8:30 AM")...');
@@ -163,10 +162,10 @@ async function runEndToEndTests() {
   assert.strictEqual(updatedJob?.status, 'CONFIRMED');
   assert.strictEqual(updatedJob?.assignedWorker?.id, topCandidate.worker.id);
 
-  const contractorConfirmation = sentMetaMessages.find((m) => m.body.includes('Worker Confirm Ho Gaya'));
+  const contractorConfirmation = sentMetaMessages.find((m) => m.body.includes('Worker Confirmation'));
   assert.ok(contractorConfirmation !== undefined, 'Contractor must receive WhatsApp confirmation');
   assert.ok(contractorConfirmation.body.includes(topCandidate.worker.phone), 'Must include worker phone');
-  console.log('  ✔ Contractor notified on WhatsApp with worker details.');
+  console.log('  ✔ Contractor notified on WhatsApp with clean professional worker details.');
 
   // Test 10: Auto-escalation when worker rejects
   console.log('\n▶ Test 10: Testing auto-escalation when worker declines...');
@@ -208,7 +207,7 @@ async function runEndToEndTests() {
   assert.ok(oneShotRes.job.locationName.includes('Sector 62'));
   const sessionOneShot = sessionService.getSession(contractor3);
   assert.strictEqual(sessionOneShot?.step, 'AWAITING_CONFIRMATION');
-  console.log('  ✔ One-shot sentence automatically parsed trade, 2 workers, Sector 62, ₹900 wage, and timing!');
+  console.log('  ✔ One-shot sentence automatically parsed trade, 2 workers, Sector 62, Rs. 900 wage, and timing!');
 
   // Test 12: Real-Life Wage Lowball Warning & Upgrade
   console.log('\n▶ Test 12: Real-Life Wage Benchmark Lowball Warning...');
@@ -220,16 +219,16 @@ async function runEndToEndTests() {
   await workflowEngine.handleIncomingMessage(contractor4, '1');
   await workflowEngine.handleIncomingMessage(contractor4, 'Sector 62 Noida');
   
-  // Offer ₹450 (severely below standard ₹850-1000)
+  // Offer Rs. 450 (severely below standard Rs. 850-1000)
   const lowWageReply = await workflowEngine.handleIncomingMessage(contractor4, '450');
-  assert.ok(lowWageReply.replyText.includes('Dihadi Alert'), 'Must warn contractor about lowball wage');
-  assert.ok(lowWageReply.replyText.includes('Reply *1* to upgrade'), 'Must provide upgrade choice');
+  assert.ok(lowWageReply.replyText.includes('Dihadi Advisory'), 'Must warn contractor about lowball wage');
+  assert.ok(lowWageReply.replyText.includes('upgrade wage to standard'), 'Must provide upgrade choice');
   
   // Contractor accepts wage upgrade to standard
   await workflowEngine.handleIncomingMessage(contractor4, '1');
   const sessionLowWage = sessionService.getSession(contractor4);
   assert.strictEqual(sessionLowWage?.jobDraft.offeredDailyWage, 850);
-  console.log('  ✔ Lowball wage ₹450 triggered alert and was successfully upgraded to standard ₹850!');
+  console.log('  ✔ Lowball wage Rs. 450 triggered advisory and was successfully upgraded to standard Rs. 850!');
 
   // Test 13: Real-Life Multi-Worker Crew Sequential Fulfillment
   console.log('\n▶ Test 13: Real-Life Multi-Worker Fulfillment (Crew of 2 Workers)...');
@@ -271,12 +270,59 @@ async function runEndToEndTests() {
   assert.strictEqual(morningResult.confirmedCount, 2);
   console.log('  ✔ Morning wake-up check successfully executed for confirmed workers.');
 
+  // Test 15: Webhook Idempotency (Deduplication)
+  console.log('\n▶ Test 15: Webhook Idempotency & Message Deduplication...');
+  const testWamid = 'wamid.HBgMOTE3Njk2MTM4MjI5FQIAERgSRDZDNjJEMzJDQkVGNTc1OUJGAA==';
+  const firstSeen = webhookController.isDuplicateMessage(testWamid);
+  const secondSeen = webhookController.isDuplicateMessage(testWamid);
+  assert.strictEqual(firstSeen, false, 'First message delivery must be processed');
+  assert.strictEqual(secondSeen, true, 'Duplicate webhook delivery must be detected and dropped');
+  console.log('  ✔ Webhook idempotency correctly dropped duplicate delivery event.');
+
+  // Test 16: Mid-Stream Contractor Cancellation & Worker Release
+  console.log('\n▶ Test 16: Mid-Stream Contractor Cancellation Handling...');
+  const contractor6 = '+919876543215';
+  sessionService.resetSession(contractor6);
+
+  const jobToCancelMsg = 'Kal subah 8:00 AM Sector 62 Noida me 1 Rajmistri chahiye 850 dihadi';
+  const jobToCancelRes = await workflowEngine.handleIncomingMessage(contractor6, jobToCancelMsg);
+  const cancelJob = jobToCancelRes.job!;
+  
+  // Confirm and assign worker
+  await workflowEngine.handleIncomingMessage(contractor6, '1');
+  const targetWorker = cancelJob.matchedCandidates[0].worker;
+  await ivrCallService.handleCallResponse(cancelJob.id, targetWorker.id, '1');
+
+  const assignedBeforeCancel = sessionService.getJob(cancelJob.id);
+  assert.strictEqual(assignedBeforeCancel?.status, 'CONFIRMED');
+
+  // Contractor cancels after confirmation
+  const cancelReply = await workflowEngine.handleIncomingMessage(contractor6, 'cancel');
+  assert.ok(cancelReply.replyText.includes('Booking Cancelled'));
+  const cancelledJob = sessionService.getJob(cancelJob.id);
+  assert.strictEqual(cancelledJob?.status, 'CANCELLED');
+  console.log('  ✔ Dispatched booking successfully cancelled and worker schedule released.');
+
+  // Test 17: 45-Minute Stale Session Expiry (TTL)
+  console.log('\n▶ Test 17: 45-Minute Inactive Session Timeout (TTL)...');
+  const contractor7 = '+919876543216';
+  sessionService.resetSession(contractor7);
+
+  await workflowEngine.handleIncomingMessage(contractor7, 'Hi');
+  const activeSession = sessionService.getOrCreateSession(contractor7);
+  // Artificially age session by 46 minutes
+  activeSession.lastInteraction = new Date(Date.now() - 46 * 60 * 1000).toISOString();
+
+  const staleReply = await workflowEngine.handleIncomingMessage(contractor7, '2 Rajmistri');
+  assert.ok(staleReply.replyText.includes('Notice') && staleReply.replyText.includes('expire'));
+  console.log('  ✔ Stale draft session cleanly expired and prompted for fresh requirements.');
+
   console.log('\n===============================================================');
-  console.log('🎉 ALL 14/14 PRODUCTION REAL-LIFE TESTS PASSED WITH 100% SUCCESS!');
+  console.log('ALL 17/17 PRODUCTION-GRADE TESTS PASSED WITH 100% SUCCESS!');
   console.log('===============================================================\n');
 }
 
 runEndToEndTests().catch((err) => {
-  console.error('❌ Test failed:', err);
+  console.error('Test failed:', err);
   process.exit(1);
 });

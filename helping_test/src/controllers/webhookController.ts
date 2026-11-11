@@ -2,6 +2,31 @@ import { Request, Response } from 'express';
 import { workflowEngine } from '../services/workflowEngine.js';
 
 export class WebhookController {
+  private processedMessageIds: Map<string, number> = new Map();
+  private readonly DEDUP_TTL_MS = 120_000; // 120 seconds idempotency cache
+
+  /**
+   * Deduplicates Meta retry webhooks using message ID (wamid)
+   */
+  public isDuplicateMessage(messageId?: string): boolean {
+    if (!messageId) return false;
+    const now = Date.now();
+
+    // Evict expired entries
+    for (const [id, timestamp] of this.processedMessageIds.entries()) {
+      if (now - timestamp > this.DEDUP_TTL_MS) {
+        this.processedMessageIds.delete(id);
+      }
+    }
+
+    if (this.processedMessageIds.has(messageId)) {
+      return true;
+    }
+
+    this.processedMessageIds.set(messageId, now);
+    return false;
+  }
+
   /**
    * Meta WhatsApp Cloud API Webhook Verification (GET /webhook)
    */
@@ -44,6 +69,13 @@ export class WebhookController {
         if (messages && messages.length > 0) {
           const message = messages[0];
           const senderPhone = message.from; // e.g. "919876543210"
+
+          // Deduplication: prevent duplicate processing on Meta retry
+          if (message.id && this.isDuplicateMessage(message.id)) {
+            console.log(`[Meta Webhook] Dropping duplicate webhook delivery: ${message.id}`);
+            res.status(200).send('EVENT_RECEIVED');
+            return;
+          }
 
           let messageText = '';
           let incomingLoc: { lat: number; lng: number; name?: string } | undefined;

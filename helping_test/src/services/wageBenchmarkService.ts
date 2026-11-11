@@ -105,10 +105,15 @@ export class WageBenchmarkService {
         benchmark,
         recommendedWage: benchmark.standardMarketMin,
         advisoryMessage:
-          `⚠️ *Dihadi Alert (Wage too low):*\n` +
-          `${benchmark.categoryHindi} ki market me standard dihadi ₹${benchmark.standardMarketMin} se ₹${benchmark.standardMarketMax}/din chal rahi hai.\n\n` +
-          `Aapki offer ₹${offeredWage} bahut kam hai. Is rate par workers kaam reject kar sakte hain.\n` +
-          `👉 Kripya kam se kam *₹${benchmark.standardMarketMin}* offer karein.`
+          `*Helping Hand | Dihadi Advisory*\n` +
+          `─────────────────────────────────────────\n` +
+          `Category: ${benchmark.categoryDisplayName}\n` +
+          `Offered Wage: Rs. ${offeredWage} / day\n\n` +
+          `Notice: Is area me ${benchmark.categoryHindi} ki standard dihadi Rs. ${benchmark.standardMarketMin} se Rs. ${benchmark.standardMarketMax}/din chal rahi hai.\n` +
+          `Rs. ${offeredWage} par workers dispatch accept karne se mana kar sakte hain.\n\n` +
+          `- Reply '1' to upgrade wage to standard Rs. ${benchmark.standardMarketMin} / day\n` +
+          `- Reply '2' to continue with your offer Rs. ${offeredWage}\n` +
+          `─────────────────────────────────────────`
       };
     }
 
@@ -119,9 +124,11 @@ export class WageBenchmarkService {
         benchmark,
         recommendedWage: benchmark.standardMarketMin,
         advisoryMessage:
-          `ℹ️ *Market Suggestion:*\n` +
-          `Is area me ${benchmark.categoryHindi} ki standard dihadi ₹${benchmark.standardMarketMin}–₹${benchmark.standardMarketMax}/din hai.\n` +
-          `₹${offeredWage} par call shuru ki ja rahi hai, par agar turant acceptance chahiye toh ₹${benchmark.standardMarketMin} behtar rahega.`
+          `*Helping Hand | Market Rate Notice*\n` +
+          `─────────────────────────────────────────\n` +
+          `Is area me ${benchmark.categoryHindi} ki standard dihadi Rs. ${benchmark.standardMarketMin} se Rs. ${benchmark.standardMarketMax}/din hai.\n` +
+          `Rs. ${offeredWage} par call shuru ki ja rahi hai. Turant acceptance ke liye Rs. ${benchmark.standardMarketMin} anukul rahega.\n` +
+          `─────────────────────────────────────────`
       };
     }
 

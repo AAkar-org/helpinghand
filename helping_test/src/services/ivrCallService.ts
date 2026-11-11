@@ -59,8 +59,10 @@ export class IvrCallService {
 
         await whatsappService.sendTextMessage(
           job.contractorPhone,
-          `⚠️ *Update on Booking #${job.id}*:\n` +
-          `Is samay aas-paas ke sabhi ${job.category} vyast hain. Humari support team aapse turant sampark karegi.`
+          `*Helping Hand | Status Update (#${job.id})*\n` +
+          `─────────────────────────────────────────\n` +
+          `Notice: Is samay aas-paas ke sabhi ${job.category} vyast hain.\n` +
+          `Humari operations team aapse turant sampark karegi.`
         );
       }
       throw new Error('No more available candidates in priority queue');
@@ -173,9 +175,10 @@ export class IvrCallService {
 
         // Notify contractor of intermediate progress
         const partialUpdate =
-          `👷 *Worker ${currentConfirmed}/${needed} Confirmed!*\n\n` +
-          `• *${worker.name}* (${worker.rating}★, ${worker.phone})\n\n` +
-          `📞 Slot #${currentConfirmed + 1} ke liye agle top worker ko call lagaya ja raha hai...`;
+          `*Helping Hand | Crew Progress (${currentConfirmed}/${needed})*\n` +
+          `─────────────────────────────────────────\n` +
+          `- Confirmed: ${worker.name} (${worker.rating} / 5.0, ${worker.phone})\n\n` +
+          `Slot #${currentConfirmed + 1} ke liye agle candidate worker ko call lagaya ja raha hai...`;
         await whatsappService.sendTextMessage(job.contractorPhone, partialUpdate);
 
         // Find next candidate in the queue who hasn't been called
@@ -217,8 +220,10 @@ export class IvrCallService {
         const nextWorker = job.matchedCandidates[nextIndex].worker;
         await whatsappService.sendTextMessage(
           job.contractorPhone,
-          `🔄 *Update:* Worker ${worker.name} is samay vyast hain.\n` +
-          `Hum agle top-rated worker *${nextWorker.name}* (${nextWorker.rating}★, ${job.matchedCandidates[nextIndex].distanceKm} km door) ko call laga rahe hain... 📞`
+          `*Helping Hand | Dispatch Update*\n` +
+          `─────────────────────────────────────────\n` +
+          `Worker ${worker.name} is samay vyast hain.\n` +
+          `Hum agle top-rated worker ${nextWorker.name} (${nextWorker.rating} / 5.0, ${job.matchedCandidates[nextIndex].distanceKm} km door) ko call laga rahe hain...`
         );
 
         await this.dispatchWorkerCall(job, nextIndex);
@@ -234,7 +239,9 @@ export class IvrCallService {
 
           await whatsappService.sendTextMessage(
             job.contractorPhone,
-            `⚠️ *Notification:* Is samay aas-paas ke sabhi ${job.category} vyast hain. Humari support team jald aapse sampark karegi.`
+            `*Helping Hand | Queue Notification*\n` +
+            `─────────────────────────────────────────\n` +
+            `Is samay aas-paas ke sabhi ${job.category} vyast hain. Humari support team jald aapse sampark karegi.`
           );
         }
       }
@@ -249,31 +256,32 @@ export class IvrCallService {
   private async sendFinalCrewConfirmation(job: JobRequest): Promise<void> {
     const workers = job.assignedWorkers && job.assignedWorkers.length > 0 ? job.assignedWorkers : [job.assignedWorker!];
     const totalDailyPayout = job.offeredDailyWage * workers.length;
+    const overtimeHourlyRate = Math.round((job.offeredDailyWage / 8) * 1.25);
 
     let crewListText = '';
     workers.forEach((w, idx) => {
       crewListText +=
-        `\n${idx + 1}️⃣ *${w.name}* (${w.categoryDisplayName})\n` +
-        `   ⭐ Rating: ${w.rating}★ (${w.completedShifts} shifts)\n` +
-        `   📍 Location: ${w.location.area}, ${w.location.city}\n` +
-        `   📞 Mobile: ${w.phone}\n`;
+        `\n${idx + 1}. ${w.name} (${w.categoryDisplayName})\n` +
+        `   Rating: ${w.rating} / 5.0 (${w.completedShifts} shifts)\n` +
+        `   Location: ${w.location.area}, ${w.location.city}\n` +
+        `   Contact: ${w.phone}\n`;
     });
 
-    const titleHeader =
-      workers.length > 1
-        ? `🎉 *Badhai Ho! Sabhi Workers Confirm Ho Gaye Hain!*`
-        : `🎉 *Badhai Ho! Worker Confirm Ho Gaya Hai!*`;
-
     const confirmMessage =
-      `${titleHeader}\n` +
-      `━━━━━━━━━━━━━━━━━━\n` +
-      `🆔 *Booking ID:* #${job.id}\n` +
-      `👥 *Confirmed Crew (${workers.length}/${job.workersNeeded}):*${crewListText}\n` +
-      `━━━━━━━━━━━━━━━━━━\n` +
-      `📍 *Work Site:* ${job.locationName}\n` +
-      `💰 *Dihadi:* ₹${job.offeredDailyWage}/worker (Kul ₹${totalDailyPayout}/din)\n` +
-      `📅 *Shift Date/Time:* ${job.shiftDate}\n\n` +
-      `Sabhi workers ko site location SMS kar di gayi hai. Shift shuru hone se pehle subah 7:00 AM unhe wake-up dispatch call jayegi.`;
+      `*Helping Hand | Worker Confirmation*\n` +
+      `─────────────────────────────────────────\n` +
+      `Booking ID: #${job.id}\n` +
+      `Status: Confirmed\n\n` +
+      `Confirmed Crew (${workers.length}/${job.workersNeeded}):${crewListText}\n` +
+      `─────────────────────────────────────────\n` +
+      `Work Site: ${job.locationName}\n` +
+      `Daily Wage: Rs. ${job.offeredDailyWage} / worker (Total Rs. ${totalDailyPayout} / day)\n` +
+      `Shift Terms: 8 Hours work + 1 hour lunch break\n` +
+      `Overtime Rate: Rs. ${overtimeHourlyRate} / hour (past 5:00 PM)\n` +
+      `Reporting Time: ${job.shiftDate}\n` +
+      `─────────────────────────────────────────\n` +
+      `Workers ko site location aur sampark number SMS kar diye gaye hain.\n` +
+      `Shift shuru hone se pehle subah 7:00 AM unhe wake-up dispatch confirmation call jayegi.`;
 
     await whatsappService.sendTextMessage(job.contractorPhone, confirmMessage);
     console.log(`[IVR] Job #${job.id} completely confirmed with ${workers.length} worker(s).`);
@@ -298,11 +306,33 @@ export class IvrCallService {
 
     await whatsappService.sendTextMessage(
       job.contractorPhone,
-      `☀️ *Morning Dispatch Update (#${job.id})*:\n` +
-      `Humari subah ki automated wake-up call par sabhi ${confirmedCount} workers ne confirm kiya hai ki woh on-schedule site ke liye nikal rahe hain.`
+      `*Helping Hand | Morning Dispatch Update (#${job.id})*\n` +
+      `─────────────────────────────────────────\n` +
+      `Subah ki automated wake-up call par sabhi ${confirmedCount} workers ne confirm kiya hai ki woh on-schedule site ke liye nikal rahe hain.\n` +
+      `─────────────────────────────────────────`
     );
 
     return { confirmedCount, escalatedCount: 0 };
+  }
+
+  /**
+   * Mid-Stream Contractor Cancellation with Automated Worker Notification
+   */
+  public async cancelDispatchedJob(bookingId: string, reason?: string): Promise<boolean> {
+    const job = sessionService.getJob(bookingId);
+    if (!job) return false;
+
+    job.status = 'CANCELLED';
+    job.updatedAt = new Date().toISOString();
+    sessionService.saveJob(job);
+
+    const assigned = job.assignedWorkers || (job.assignedWorker ? [job.assignedWorker] : []);
+    for (const worker of assigned) {
+      matchingService.setWorkerAvailability(worker.id, true);
+      console.log(`[Cancellation] Dispatched notification to Worker ${worker.name} (${worker.phone}): Booking #${job.id} cancelled by contractor.`);
+    }
+
+    return true;
   }
 }
 

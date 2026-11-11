@@ -3,6 +3,7 @@ import { ConversationSession, ConversationStep, JobRequest } from '../types/inde
 class SessionService {
   private sessions: Map<string, ConversationSession> = new Map();
   private jobs: Map<string, JobRequest> = new Map();
+  private readonly SESSION_TTL_MS = 45 * 60 * 1000; // 45 minutes
 
   /**
    * Normalizes phone number to clean standard string
@@ -12,6 +13,18 @@ class SessionService {
     if (cleaned.startsWith('+')) return cleaned;
     if (cleaned.length === 10) return `+91${cleaned}`;
     return `+${cleaned}`;
+  }
+
+  /**
+   * Checks if session has been inactive for more than 45 minutes
+   */
+  public isSessionStale(rawPhone: string): boolean {
+    const session = this.getSession(rawPhone);
+    if (!session || session.step === 'IDLE' || session.step === 'CONFIRMED') {
+      return false;
+    }
+    const elapsed = Date.now() - new Date(session.lastInteraction).getTime();
+    return elapsed > this.SESSION_TTL_MS;
   }
 
   /**

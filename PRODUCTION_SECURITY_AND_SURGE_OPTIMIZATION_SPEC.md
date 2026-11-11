@@ -211,3 +211,4 @@ When moving to live production on a dedicated cloud server (e.g. AWS EC2, Digita
    - Point `DATABASE_URL` to managed PostgreSQL 15 instance.
    - Point `REDIS_URL` to managed Redis 7 instance.
    - Run under **PM2 Cluster Mode** (`pm2 start dist/server.js -i max --name whatsapp-engine`) to distribute load across all available CPU cores.
+

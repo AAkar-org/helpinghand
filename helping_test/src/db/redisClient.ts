@@ -7,6 +7,8 @@ class RedisManager {
   private client: RedisClientType | null = null;
   private isConnected = false;
   private readonly fallbackCache = new Map<string, { value: string; expiresAt: number }>();
+  private readonly workerLocks = new Map<string, { jobId: string; expiresAt: number }>();
+  private readonly rateLimits = new Map<string, { count: number; resetAt: number }>();
 
   constructor() {
     const url = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -34,7 +36,6 @@ class RedisManager {
       });
 
       this.client.on('error', (err) => {
-        // Log once or on state change to avoid console flood
         if (this.isConnected) {
           console.warn(`[Redis Warning] Redis connection issue: ${err.message}`);
         }
@@ -46,8 +47,7 @@ class RedisManager {
       });
 
       // Non-blocking auto-connect
-      this.client.connect().catch((err) => {
-        // Will fallback gracefully to in-memory cache
+      this.client.connect().catch(() => {
         this.isConnected = false;
       });
     } catch (err: any) {
@@ -60,6 +60,10 @@ class RedisManager {
     return this.isConnected && this.client !== null;
   }
 
+  public getRawClient(): RedisClientType | null {
+    return this.client;
+  }
+
   /**
    * Sets key with TTL (seconds)
    */
@@ -68,7 +72,7 @@ class RedisManager {
       try {
         await this.client.setEx(key, seconds, value);
         return;
-      } catch (err) {
+      } catch {
         this.isConnected = false;
       }
     }
@@ -86,7 +90,7 @@ class RedisManager {
     if (this.isReady && this.client) {
       try {
         return await this.client.get(key);
-      } catch (err) {
+      } catch {
         this.isConnected = false;
       }
     }
@@ -112,7 +116,7 @@ class RedisManager {
           NX: true
         });
         return result === 'OK';
-      } catch (err) {
+      } catch {
         this.isConnected = false;
       }
     }
@@ -135,11 +139,120 @@ class RedisManager {
     if (this.isReady && this.client) {
       try {
         await this.client.del(key);
-      } catch (err) {
+      } catch {
         this.isConnected = false;
       }
     }
     this.fallbackCache.delete(key);
+  }
+
+  // ----------------------------------------------------------------------
+  // HIGH CONCURRENCY: DISTRIBUTED WORKER DISPATCH LOCKING
+  // Prevents two contractors during traffic surge from calling the same worker
+  // ----------------------------------------------------------------------
+  public async acquireWorkerLock(workerId: string, jobId: string, ttlSeconds = 180): Promise<boolean> {
+    const lockKey = `lock:worker:${workerId}`;
+    if (this.isReady && this.client) {
+      try {
+        const result = await this.client.set(lockKey, jobId, {
+          EX: ttlSeconds,
+          NX: true
+        });
+        return result === 'OK';
+      } catch {
+        this.isConnected = false;
+      }
+    }
+
+    // In-memory fallback
+    const existing = this.workerLocks.get(workerId);
+    if (existing && Date.now() < existing.expiresAt) {
+      return false;
+    }
+    this.workerLocks.set(workerId, {
+      jobId,
+      expiresAt: Date.now() + ttlSeconds * 1000
+    });
+    return true;
+  }
+
+  public async releaseWorkerLock(workerId: string): Promise<void> {
+    const lockKey = `lock:worker:${workerId}`;
+    if (this.isReady && this.client) {
+      try {
+        await this.client.del(lockKey);
+      } catch {
+        this.isConnected = false;
+      }
+    }
+    this.workerLocks.delete(workerId);
+  }
+
+  public async isWorkerLocked(workerId: string): Promise<boolean> {
+    const lockKey = `lock:worker:${workerId}`;
+    if (this.isReady && this.client) {
+      try {
+        const val = await this.client.get(lockKey);
+        return val !== null;
+      } catch {
+        this.isConnected = false;
+      }
+    }
+
+    const existing = this.workerLocks.get(workerId);
+    if (!existing) return false;
+    if (Date.now() > existing.expiresAt) {
+      this.workerLocks.delete(workerId);
+      return false;
+    }
+    return true;
+  }
+
+  // ----------------------------------------------------------------------
+  // HIGH CONCURRENCY: SLIDING WINDOW RATE LIMITER PER CONTRACTOR PHONE
+  // ----------------------------------------------------------------------
+  public async checkRateLimit(
+    phone: string,
+    maxRequests = 20,
+    windowSeconds = 60
+  ): Promise<{ allowed: boolean; remaining: number; resetSeconds: number }> {
+    const key = `ratelimit:phone:${phone}`;
+    const now = Math.floor(Date.now() / 1000);
+
+    if (this.isReady && this.client) {
+      try {
+        const current = await this.client.incr(key);
+        if (current === 1) {
+          await this.client.expire(key, windowSeconds);
+        }
+        const ttl = await this.client.ttl(key);
+        return {
+          allowed: current <= maxRequests,
+          remaining: Math.max(0, maxRequests - current),
+          resetSeconds: Math.max(0, ttl)
+        };
+      } catch {
+        this.isConnected = false;
+      }
+    }
+
+    // Fallback in-memory
+    const existing = this.rateLimits.get(phone);
+    if (!existing || Date.now() > existing.resetAt) {
+      this.rateLimits.set(phone, {
+        count: 1,
+        resetAt: Date.now() + windowSeconds * 1000
+      });
+      return { allowed: true, remaining: maxRequests - 1, resetSeconds: windowSeconds };
+    }
+
+    existing.count += 1;
+    const resetSeconds = Math.ceil((existing.resetAt - Date.now()) / 1000);
+    return {
+      allowed: existing.count <= maxRequests,
+      remaining: Math.max(0, maxRequests - existing.count),
+      resetSeconds
+    };
   }
 
   /**
@@ -157,4 +270,3 @@ class RedisManager {
 }
 
 export const redisClient = new RedisManager();
-

@@ -3,6 +3,8 @@ import { sessionService } from './sessionService.js';
 import { matchingService } from './matchingService.js';
 import { whatsappService } from './whatsappService.js';
 import { dbClient } from '../db/dbClient.js';
+import { redisClient } from '../db/redisClient.js';
+import { maskPhone } from '../utils/security.js';
 
 export class IvrCallService {
   /**
@@ -72,6 +74,13 @@ export class IvrCallService {
     const match = job.matchedCandidates[candidateIndex];
     const worker = match.worker;
 
+    // HIGH CONCURRENCY: Acquire distributed lock on candidate worker
+    const lockAcquired = await redisClient.acquireWorkerLock(worker.id, job.id, 180);
+    if (!lockAcquired) {
+      console.log(`[Telephony Surge] Worker ${worker.name} is currently locked in another active call. Throttling to next candidate...`);
+      return this.dispatchWorkerCall(job, candidateIndex + 1);
+    }
+
     match.callStatus = 'CALLING';
     match.callAttemptCount += 1;
     match.lastCallTimestamp = new Date().toISOString();
@@ -85,7 +94,7 @@ export class IvrCallService {
 
     if (!accountSid || !authToken || !fromNumber || !callbackBase) {
       console.log(
-        `[IVR Telephony] (Free Simulation Mode) Calling Candidate #${candidateIndex + 1}: ${worker.name} (${worker.phone})...`
+        `[IVR Telephony] (Free Simulation Mode) Calling Candidate #${candidateIndex + 1}: ${worker.name} (${maskPhone(worker.phone)})...`
       );
 
       // Simulates worker picking up and pressing 1 after 3.5s
@@ -122,11 +131,12 @@ export class IvrCallService {
 
     const data = (await resp.json()) as { sid?: string; message?: string };
     if (!resp.ok || !data.sid) {
+      await redisClient.releaseWorkerLock(worker.id);
       console.error('[Twilio Voice Error]:', data);
       throw new Error(`Twilio call dispatch failed: ${data.message || resp.statusText}`);
     }
 
-    console.log(`[Twilio IVR] Outbound call placed to ${worker.name} (${worker.phone}), SID: ${data.sid}`);
+    console.log(`[Twilio IVR] Outbound call placed to ${worker.name} (${maskPhone(worker.phone)}), SID: ${data.sid}`);
     return { success: true, callSid: data.sid };
   }
 
@@ -156,6 +166,7 @@ export class IvrCallService {
 
     if (digits === '1') {
       // --- 1. WORKER ACCEPTED ---
+      await redisClient.releaseWorkerLock(worker.id);
       candidate.callStatus = 'ACCEPTED';
       matchingService.setWorkerAvailability(worker.id, false);
 
@@ -209,6 +220,7 @@ export class IvrCallService {
       }
     } else {
       // --- 2. WORKER REJECTED OR TIMED OUT ---
+      await redisClient.releaseWorkerLock(worker.id);
       const isReject = digits === '2';
       candidate.callStatus = isReject ? 'REJECTED' : 'NO_ANSWER';
 
@@ -343,8 +355,15 @@ export class IvrCallService {
 
     const assigned = job.assignedWorkers || (job.assignedWorker ? [job.assignedWorker] : []);
     for (const worker of assigned) {
+      await redisClient.releaseWorkerLock(worker.id);
       matchingService.setWorkerAvailability(worker.id, true);
-      console.log(`[Cancellation] Dispatched notification to Worker ${worker.name} (${worker.phone}): Booking #${job.id} cancelled by contractor.`);
+      console.log(`[Cancellation] Dispatched notification to Worker ${worker.name} (${maskPhone(worker.phone)}): Booking #${job.id} cancelled by contractor.`);
+    }
+
+    if (job.matchedCandidates) {
+      for (const c of job.matchedCandidates) {
+        await redisClient.releaseWorkerLock(c.worker.id);
+      }
     }
 
     return true;

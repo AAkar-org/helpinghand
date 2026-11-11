@@ -52,9 +52,11 @@ class DatabaseManager {
     try {
       this.pool = new Pool({
         connectionString,
-        connectionTimeoutMillis: 3000,
-        idleTimeoutMillis: 10000,
-        max: 10
+        connectionTimeoutMillis: 5000,
+        idleTimeoutMillis: 30000,
+        max: 25, // Scaled for high concurrent contractor surges
+        min: 4,  // Keep warm pool of 4 ready connections
+        keepAlive: true
       });
 
       this.pool.on('error', (err) => {
@@ -64,15 +66,16 @@ class DatabaseManager {
         this.isConnected = false;
       });
 
-      // Quick test probe
+      // Quick test probe & index optimization
       this.pool
         .query('SELECT current_database(), count(*)::int as tbl_count FROM information_schema.tables WHERE table_schema = $1', ['public'])
         .then(async (res) => {
           this.isConnected = true;
           console.log(`[Database] Connected to PostgreSQL '${res.rows[0].current_database}' on port 5433 (Tables: ${res.rows[0].tbl_count})`);
+          await this.optimizeProductionIndexes();
           await this.syncWorkersSeed();
         })
-        .catch((err) => {
+        .catch(() => {
           // Graceful fallback for offline mode or unit tests
           this.isConnected = false;
         });
@@ -84,6 +87,31 @@ class DatabaseManager {
 
   public get isReady(): boolean {
     return this.isConnected && this.pool !== null;
+  }
+
+  /**
+   * Automatically ensures high-performance composite indexes are present
+   * to handle large concurrent contractor searches and shift queries.
+   */
+  public async optimizeProductionIndexes(): Promise<void> {
+    if (!this.isReady || !this.pool) return;
+    try {
+      const indexQueries = [
+        `CREATE INDEX IF NOT EXISTS idx_workers_cat_avail ON workers(worker_category, is_available);`,
+        `CREATE INDEX IF NOT EXISTS idx_workers_coords ON workers(last_known_lat, last_known_lng);`,
+        `CREATE INDEX IF NOT EXISTS idx_shifts_emp_status ON shifts(employer_id, status);`,
+        `CREATE INDEX IF NOT EXISTS idx_shifts_worker_status ON shifts(worker_id, status);`,
+        `CREATE INDEX IF NOT EXISTS idx_shifts_created ON shifts(created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_employers_phone ON employers(phone_number);`
+      ];
+
+      for (const query of indexQueries) {
+        await this.pool.query(query);
+      }
+      console.log(`[Database] Production composite indexes verified and optimized.`);
+    } catch (err: any) {
+      console.warn(`[Database Index Warning] Index optimization deferred: ${err.message}`);
+    }
   }
 
   /**
@@ -193,7 +221,7 @@ class DatabaseManager {
   }
 
   /**
-   * Records a confirmed shift into PostgreSQL shifts table
+   * Records a confirmed shift into PostgreSQL shifts table with strict ACID transaction
    */
   public async recordConfirmedShift(data: {
     employerPhone: string;
@@ -203,27 +231,43 @@ class DatabaseManager {
   }): Promise<DbShift | null> {
     if (!this.isReady || !this.pool) return null;
 
+    const client = await this.pool.connect();
     try {
+      await client.query('BEGIN');
+
       // 1. Ensure employer exists
-      const employer = await this.getOrCreateEmployer(data.employerPhone);
-      if (!employer) return null;
+      const empRes = await client.query(
+        `INSERT INTO employers (phone_number, full_name, trust_rating)
+         VALUES ($1, 'WhatsApp Contractor', 5.00)
+         ON CONFLICT (phone_number) DO UPDATE SET full_name = COALESCE(employers.full_name, EXCLUDED.full_name)
+         RETURNING employer_id;`,
+        [data.employerPhone]
+      );
+      const employerId = empRes.rows[0].employer_id;
 
       // 2. Ensure worker exists
-      let worker = await this.getWorkerByPhone(data.workerPhone);
-      if (!worker) {
-        // Create worker record if not present
-        const insertWorker = await this.pool.query(
+      let workerRes = await client.query(
+        `SELECT worker_id FROM workers WHERE phone_number = $1 FOR UPDATE;`,
+        [data.workerPhone]
+      );
+
+      let workerId: string;
+      if (workerRes.rows.length === 0) {
+        const newWorker = await client.query(
           `INSERT INTO workers (phone_number, worker_category, is_available)
-           VALUES ($1, 'GENERAL_LABOR', true)
-           ON CONFLICT (phone_number) DO UPDATE SET is_available = true
-           RETURNING worker_id, phone_number, worker_category;`,
+           VALUES ($1, 'GENERAL_LABOR', false)
+           RETURNING worker_id;`,
           [data.workerPhone]
         );
-        worker = insertWorker.rows[0];
+        workerId = newWorker.rows[0].worker_id;
+      } else {
+        workerId = workerRes.rows[0].worker_id;
+        // Mark worker temporarily busy
+        await client.query(`UPDATE workers SET is_available = false WHERE worker_id = $1;`, [workerId]);
       }
 
       // 3. Insert Shift Record
-      const shiftRes = await this.pool.query(
+      const shiftRes = await client.query(
         `INSERT INTO shifts (
           employer_id,
           worker_id,
@@ -236,15 +280,19 @@ class DatabaseManager {
           worked_hours
         ) VALUES ($1, $2, 'CONFIRMED', $3, false, NOW(), 'VERIFIED', true, 8.0)
         RETURNING shift_id, employer_id, worker_id, status, agreed_daily_wage, created_at;`,
-        [employer.employer_id, worker?.worker_id, data.agreedDailyWage]
+        [employerId, workerId, data.agreedDailyWage]
       );
 
+      await client.query('COMMIT');
       const shift = shiftRes.rows[0];
-      console.log(`[PostgreSQL] Shift #${shift.shift_id} recorded in PostgreSQL (Wage: Rs. ${data.agreedDailyWage})`);
+      console.log(`[PostgreSQL] Shift #${shift.shift_id} recorded transactionally in PostgreSQL (Wage: Rs. ${data.agreedDailyWage})`);
       return shift;
     } catch (err: any) {
-      console.warn(`[Database Error] recordConfirmedShift failed: ${err.message}`);
+      await client.query('ROLLBACK');
+      console.warn(`[Database Error] recordConfirmedShift transaction rolled back: ${err.message}`);
       return null;
+    } finally {
+      client.release();
     }
   }
 
@@ -274,4 +322,3 @@ class DatabaseManager {
 }
 
 export const dbClient = new DatabaseManager();
-

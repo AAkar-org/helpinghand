@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { workflowEngine } from '../services/workflowEngine.js';
 import { redisClient } from '../db/redisClient.js';
 import { dbClient } from '../db/dbClient.js';
+import { verifyMetaSignature, maskPhone, sanitizeInput } from '../utils/security.js';
 
 export class WebhookController {
   private processedMessageIds: Map<string, number> = new Map();
@@ -63,6 +64,15 @@ export class WebhookController {
    */
   public handleMetaWebhook = async (req: Request, res: Response): Promise<void> => {
     try {
+      // 1. Cryptographic HMAC-SHA256 Signature Verification
+      const signature = req.headers['x-hub-signature-256'] as string | undefined;
+      const rawBody = (req as any).rawBody;
+      if (!verifyMetaSignature(rawBody, signature)) {
+        console.warn('[Security Warning] Dropping unauthorized webhook request: Invalid Meta signature');
+        res.status(401).send('Unauthorized: Invalid HMAC signature');
+        return;
+      }
+
       const body = req.body;
 
       // Meta sends events wrapped in entry[].changes[].value
@@ -76,7 +86,15 @@ export class WebhookController {
           const message = messages[0];
           const senderPhone = message.from; // e.g. "919876543210"
 
-          // Deduplication: prevent duplicate processing on Meta retry
+          // 2. Sliding Window Rate Limiting per Contractor Phone
+          const rateCheck = await redisClient.checkRateLimit(senderPhone, 30, 60);
+          if (!rateCheck.allowed) {
+            console.warn(`[Security RateLimit] Throttled contractor ${maskPhone(senderPhone)} (Exceeded 30 msgs/min)`);
+            res.status(200).send('EVENT_RECEIVED');
+            return;
+          }
+
+          // 3. Deduplication: prevent duplicate processing on Meta retry
           if (message.id && this.isDuplicateMessage(message.id)) {
             console.log(`[Meta Webhook] Dropping duplicate webhook delivery: ${message.id}`);
             res.status(200).send('EVENT_RECEIVED');
@@ -87,22 +105,22 @@ export class WebhookController {
           let incomingLoc: { lat: number; lng: number; name?: string } | undefined;
 
           if (message.type === 'text') {
-            messageText = message.text?.body || '';
+            messageText = sanitizeInput(message.text?.body || '');
           } else if (message.type === 'location') {
             const loc = message.location;
             incomingLoc = {
               lat: loc.latitude,
               lng: loc.longitude,
-              name: loc.name || loc.address || `GPS (${loc.latitude}, ${loc.longitude})`
+              name: sanitizeInput(loc.name || loc.address || `GPS (${loc.latitude}, ${loc.longitude})`, 200)
             };
             messageText = `Location: ${loc.latitude}, ${loc.longitude}`;
           } else if (message.type === 'interactive') {
             const reply = message.interactive?.button_reply || message.interactive?.list_reply;
-            messageText = reply?.id || reply?.title || '';
+            messageText = sanitizeInput(reply?.id || reply?.title || '');
           }
 
           if (messageText || incomingLoc) {
-            console.log(`[Meta Webhook] Inbound from ${senderPhone}: "${messageText}"`);
+            console.log(`[Meta Webhook] Inbound from ${maskPhone(senderPhone)}: "${messageText}"`);
             // Ensure contractor identity is recorded in PostgreSQL
             dbClient.getOrCreateEmployer(senderPhone).catch(() => {});
             await workflowEngine.handleIncomingMessage(senderPhone, messageText, incomingLoc);

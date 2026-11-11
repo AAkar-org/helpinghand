@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ivrCallService } from '../services/ivrCallService.js';
+import { verifyTwilioSignature } from '../utils/security.js';
 
 export class CallController {
   /**
@@ -8,6 +9,15 @@ export class CallController {
    */
   public handleCallCallback = async (req: Request, res: Response): Promise<void> => {
     try {
+      // 1. Cryptographic Signature Validation
+      const signature = req.headers['x-twilio-signature'] as string | undefined;
+      const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+      if (!verifyTwilioSignature(signature, fullUrl, req.body)) {
+        console.warn('[Security Warning] Dropping unauthorized call callback: Invalid Twilio signature');
+        res.status(403).send('<Response><Hangup/></Response>');
+        return;
+      }
+
       const bookingId = (req.query.bookingId as string) || req.body.bookingId;
       const workerId = (req.query.workerId as string) || req.body.workerId;
       const digits = (req.body.Digits as string) || (req.query.digits as string) || '';
